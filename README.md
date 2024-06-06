@@ -78,4 +78,5 @@ Benoît LAHOZ for this package, initial authors for the transitions (see in each
 ## License
 
 This package: MIT
+
 Shaders: see for each file.
