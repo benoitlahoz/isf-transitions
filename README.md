@@ -50,9 +50,9 @@ A `patches.json` file helps to make these changes automatically in a very rudime
 
 ### Known bugs
 
-| Shader Name  | Bug                  | Fixed |
-| ------------ | -------------------- | ----- |
-| StereoViewer | Crashes in Millumin. |       |
+| Shader Name  | Bug                  | Why | Fixed |
+| ------------ | -------------------- | --- | ----- |
+| StereoViewer | Crashes in Millumin. |     |       |
 
 ## Thoughts
 
