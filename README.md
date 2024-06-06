@@ -22,7 +22,7 @@ If not specifically mentionned below, all shaders work in [Millumin 4](https://w
 
 #### Flip
 
-However, destination (`to` input) image appears flipped in Millumin.
+However, destination (`to` input) image **appears vertically flipped in Millumin**.
 A `flip` option has been added to handle this case.
 
 ### Conversion
@@ -38,7 +38,7 @@ If one wants to update and convert the current `gl-transitions` repository:
 Some shaders need manual changes to work.
 A `patches.json` file helps to make these changes automatically in a very rudimentary way.
 
-| Name              | Comments                  |
+| Shader Name       | Comments                  |
 | ----------------- | ------------------------- |
 | burn              | Expected `vec3` as color. |
 | circle            | Expected `vec3` as color. |
@@ -48,14 +48,26 @@ A `patches.json` file helps to make these changes automatically in a very rudime
 
 ### Known bugs
 
-| Name         | Comments             |
-| ------------ | -------------------- |
-| StereoViewer | Crashes in Millumin. |
+| Shader Name  | Bug                  | Fixed |
+| ------------ | -------------------- | ----- |
+| StereoViewer | Crashes in Millumin. |       |
 
 ## Thoughts
 
-**_VDMX_** and **_ISF4AE_** allow to get a layer as destination input of the shader (`to`). Would be great that **_Millumin_** implement that.
+**VDMX** and **ISF4AE** allow to get a layer as destination input of the shader (`to`). Would be great that **Millumin** implement that.
 For the time being, Millumin only allows live inputs as images in ISF shaders.
+
+## TODO
+
+- Tests with [interactive-shader-format.js](https://github.com/msfeldstein/interactive-shader-format-js)
+- Documentation / examples site.
+- Refactor parsing methods.
+- Decouple implementations.
+- Search for `vec3` to `vec4` color input conversion automatically.
+
+**PR VERY WELCOME!!!**
+
+If you want to contribute with a 'native ISF' transition, please put it in the `transitions` folder. `converted` folder is deleted and generated automatically on conversion.
 
 ## Author
 
