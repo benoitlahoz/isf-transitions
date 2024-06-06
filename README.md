@@ -6,7 +6,7 @@
 
 ### Usage
 
-Clone the repository and copy / paste the `converted` folder to your ISF directory.
+Download the latest release or clone the repository and copy / paste the `converted` folder's content to your ISF directory.
 
 You can also run
 
@@ -16,22 +16,24 @@ or
 
 `yarn copy`
 
-to automatically copy the converted transitions in your ISF folder (tested only on macOS).
+to automatically copy the converted transitions in your ISF folder (tested on macOS).
 
 If not specifically mentionned below, all shaders work in [Millumin 4](https://www.millumin.com/v4/index.php), [VDMX 5](https://vidvox.net/) and [ISF Editor](https://isf.vidvox.net/desktop-editor/) on macOS. Some of the shaders have also been tested on macOS in After Effects with [ISF plugin](https://github.com/baku89/ISF4AE).
 
 #### Flip
 
-However, destination (`to` input) image **appears vertically flipped in Millumin**.
+Destination (`to` input) image **appears vertically flipped in Millumin**.
 A `flip` option has been added to handle this case.
 
 ### Conversion
 
-If one wants to update and convert the current `gl-transitions` repository:
+If you want to update and convert the current `gl-transitions` repository:
 
 - Clone this repository.
 - Update submodule: `git submodule update --remote --merge`.
 - `npm run convert` or `yarn convert`.
+
+It is strongly suggested to make a **Pull Request** if things have changed :-)!
 
 #### Patches
 
@@ -54,8 +56,8 @@ A `patches.json` file helps to make these changes automatically in a very rudime
 
 ## Thoughts
 
-**VDMX** and **ISF4AE** allow to get a layer as destination input of the shader (`to`). Would be great that **Millumin** implement that.
-For the time being, Millumin only allows live inputs as images in ISF shaders.
+**VDMX** and **ISF4AE** allow to get an internal layer as destination input of the shader (`to`). Would be great that **Millumin** implement that.
+For the time being, Millumin only allows live inputs as textures in ISF shaders.
 
 ## TODO
 
@@ -71,8 +73,9 @@ If you want to contribute with a 'native ISF' transition, please put it in the `
 
 ## Author
 
-Benoît LAHOZ
+Benoît LAHOZ for this package, Many others for the transitions (see in each file).
 
 ## License
 
-MIT
+This package: MIT
+Shaders: see for each file.
