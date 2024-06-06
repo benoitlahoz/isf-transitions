@@ -1,0 +1,18 @@
+{
+  "burn": {
+    "vec4(progress*color, 1.0)": "vec4(progress*color.rgb, 1.0)",
+    "vec4((1.0-progress)*color, 1.0)": "vec4((1.0-progress)*color.rgb, 1.0)"
+  },
+  "circle": {
+    "vec4(backColor, 1.0)": "vec4(backColor.rgb, 1.0)"
+  },
+  "dissolve": {
+    "mix(uSpreadClr, uHotClr, factor)": "mix(uSpreadClr.rgb, uHotClr.rgb, factor)"
+  },
+  "fadecolor": {
+    "vec4(color, 1.0)": "vec4(color.rgb, 1.0)"
+  },
+  "undulatingBurnOut": {
+    "vec4(color, 1.0)": "vec4(color.rgb, 1.0)"
+  }
+}

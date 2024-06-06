@@ -1,0 +1,3 @@
+[submodule "gl-transitions"]
+	path = gl-transitions
+	url = https://github.com/gl-transitions/gl-transitions.git

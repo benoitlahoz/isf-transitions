@@ -1,0 +1,13 @@
+{
+  "name": "isf-transitions",
+  "version": "0.0.1",
+  "description": "Famous gl-transitions converted to ISF (Interactive Shader Format).",
+  "author": "Benoît LAHOZ <info@benoitlahoz.io>",
+  "license": "MIT",
+  "type": "module",
+  "main": "index.mjs",
+  "scripts": {
+    "convert": "node index.mjs",
+    "copy": "node install.mjs"
+  }
+}
