@@ -69,7 +69,9 @@ For the time being, Millumin only allows live inputs as textures in ISF shaders.
 
 **PR VERY WELCOME!!!**
 
-If you want to contribute with a 'native ISF' transition, please put it in the `transitions` folder. `converted` folder is deleted and generated automatically on conversion.
+If you want to contribute with a 'native ISF' transition, please put it in the `transitions` folder.
+
+**`converted` folder is deleted and generated automatically on conversion.**
 
 ## Author
 
