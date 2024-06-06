@@ -81,4 +81,4 @@ Benoît LAHOZ for this package, initial authors for the transitions (see in each
 
 This package: MIT
 
-Shaders: see for each file (as of 20240606 MIT, BSD-2 and BSD-3).
+Shaders: see for each file (as of 20240606 --> MIT, BSD-2 and BSD-3).
