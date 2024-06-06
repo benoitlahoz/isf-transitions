@@ -48,9 +48,6 @@ const convert = async () => {
       (file) => !statSync(path.resolve(file.path, file.name)).isDirectory()
     );
 
-    // console.log(directories, files);
-    // TODO: directories.
-
     for await (const file of files) {
       const content = await fs.readFile(
         path.resolve(file.path, file.name),
