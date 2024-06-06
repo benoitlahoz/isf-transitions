@@ -73,7 +73,7 @@ If you want to contribute with a 'native ISF' transition, please put it in the `
 
 ## Author
 
-Benoît LAHOZ for this package, Many others for the transitions (see in each file).
+Benoît LAHOZ for this package, initial authors for the transitions (see in each file).
 
 ## License
 
