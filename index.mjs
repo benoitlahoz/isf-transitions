@@ -118,17 +118,6 @@ const run = () => {
 run()
   .then(async () => {
     console.log(`Successfully converted GLSL shaders to ISF.`);
-    const f = await fs.readFile(
-      path.resolve(__dirname, DIR, 'angular.fs'),
-      'utf-8'
-    );
-
-    /*
-    const parser = new ISFParser();
-    parser.parse(f);
-    console.log(parser.fragmentShader);
-    console.log(parser.vertexShader);
-    */
   })
   .catch((err) => {
     console.error(err);
