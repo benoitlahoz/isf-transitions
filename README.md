@@ -50,14 +50,17 @@ A `patches.json` file helps to make these changes automatically in a very rudime
 
 ### Known bugs
 
-| Shader Name  | Bug                  | Why | Fixed |
-| ------------ | -------------------- | --- | ----- |
-| StereoViewer | Crashes in Millumin. |     |       |
+| Shader Name    | Bug                               | Why                                           | Fixed |
+| -------------- | --------------------------------- | --------------------------------------------- | ----- |
+| EdgeTransition | Doesn't compile in ISF4AE plugin. | `Array size must appear after variable name.` |       |
+| StereoViewer   | Crashes in Millumin.              |                                               |       |
 
 ## Thoughts
 
 **VDMX** and **ISF4AE** allow to get an internal layer as destination input of the shader (`to`). Would be great that **Millumin** implement that.
 For the time being, Millumin only allows live inputs as textures in ISF shaders.
+
+20240606 --> Should be available in next Millumin beta version ([see here](https://forum.millumin.com/discussion/2216/isf-effects-input-texture-get-existing-layer#latest)).
 
 ## TODO
 
