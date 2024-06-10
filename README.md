@@ -60,7 +60,7 @@ A `patches.json` file helps to make these changes automatically in a very rudime
 **VDMX** and **ISF4AE** allow to get an internal layer as destination input of the shader (`to`). Would be great that **Millumin** implement that.
 For the time being, Millumin only allows live inputs as textures in ISF shaders.
 
-20240606 --> Should be available in next Millumin beta version ([see here](https://forum.millumin.com/discussion/2216/isf-effects-input-texture-get-existing-layer#latest)).
+20240606 --> Should be available in next Millumin beta version! ([see here](https://forum.millumin.com/discussion/2216/isf-effects-input-texture-get-existing-layer#latest)).
 
 ## TODO
 
