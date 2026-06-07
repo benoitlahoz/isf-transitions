@@ -8,7 +8,26 @@ const __dirname = path.dirname(__filename);
 const INPUT = 'converted';
 const OUTPUT = 'isf-transitions';
 
+const removePackageManagerField = async () => {
+  const packageJsonPath = path.resolve(__dirname, 'package.json');
+  const packageJsonContent = await fs.readFile(packageJsonPath, 'utf-8');
+  const packageJson = JSON.parse(packageJsonContent);
+
+  if (!Object.prototype.hasOwnProperty.call(packageJson, 'packageManager')) {
+    return;
+  }
+
+  delete packageJson.packageManager;
+  await fs.writeFile(
+    packageJsonPath,
+    `${JSON.stringify(packageJson, null, 2)}\n`,
+    'utf-8'
+  );
+};
+
 const install = async () => {
+  await removePackageManagerField();
+
   let folder;
   if (process.platform === 'darwin') {
     folder = `${process.env.HOME}/Library/Graphics/ISF`;

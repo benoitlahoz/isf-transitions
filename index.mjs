@@ -3,12 +3,20 @@
 import { promises as fs, statSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
 import { convertGLSLToISF } from './convert.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const execFileAsync = promisify(execFile);
 
 const DIR = 'converted';
+const GL_TRANSITIONS_DIR = path.resolve(__dirname, 'gl-transitions');
+const GL_TRANSITIONS_TRANSITIONS_DIR = path.resolve(
+  GL_TRANSITIONS_DIR,
+  'transitions'
+);
 const errors = [
   `isf-transitions: gl-transitions conversion`,
   `${new Date()}`,
@@ -16,6 +24,23 @@ const errors = [
   '--------------------------------------------------------------------------------',
   '',
 ];
+
+const removePackageManagerField = async () => {
+  const packageJsonPath = path.resolve(__dirname, 'package.json');
+  const packageJsonContent = await fs.readFile(packageJsonPath, 'utf-8');
+  const packageJson = JSON.parse(packageJsonContent);
+
+  if (!Object.prototype.hasOwnProperty.call(packageJson, 'packageManager')) {
+    return;
+  }
+
+  delete packageJson.packageManager;
+  await fs.writeFile(
+    packageJsonPath,
+    `${JSON.stringify(packageJson, null, 2)}\n`,
+    'utf-8'
+  );
+};
 
 const makeDir = async () => {
   try {
@@ -34,12 +59,55 @@ const makeDir = async () => {
   }
 };
 
+const pathExists = async (filePath) => {
+  try {
+    await fs.access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const ensureTransitionsDirectory = async () => {
+  if (await pathExists(GL_TRANSITIONS_TRANSITIONS_DIR)) {
+    return;
+  }
+
+  console.log('gl-transitions not found, trying to retrieve it...');
+
+  try {
+    await execFileAsync(
+      'git',
+      ['submodule', 'update', '--init', '--recursive', 'gl-transitions'],
+      { cwd: __dirname }
+    );
+  } catch {
+    await fs.rm(GL_TRANSITIONS_DIR, {
+      recursive: true,
+      force: true,
+    });
+
+    await execFileAsync(
+      'git',
+      ['clone', 'https://github.com/gl-transitions/gl-transitions.git', 'gl-transitions'],
+      { cwd: __dirname }
+    );
+  }
+
+  if (!(await pathExists(GL_TRANSITIONS_TRANSITIONS_DIR))) {
+    throw new Error(
+      `Unable to find ${GL_TRANSITIONS_TRANSITIONS_DIR} after repository retrieval.`
+    );
+  }
+};
+
 const convert = async () => {
   try {
-    const res = await fs.readdir(
-      path.resolve(__dirname, 'gl-transitions', 'transitions'),
-      { withFileTypes: true }
-    );
+    await ensureTransitionsDirectory();
+
+    const res = await fs.readdir(GL_TRANSITIONS_TRANSITIONS_DIR, {
+      withFileTypes: true,
+    });
 
     const directories = res.filter((file) =>
       statSync(path.resolve(file.path, file.name)).isDirectory()
@@ -98,6 +166,7 @@ const convert = async () => {
 const run = () => {
   return new Promise(async (resolve, reject) => {
     try {
+      await removePackageManagerField();
       await makeDir();
       await convert();
       await fs.writeFile(
