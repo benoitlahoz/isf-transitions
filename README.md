@@ -18,6 +18,8 @@ or
 
 to automatically copy the converted transitions in your ISF folder (tested on macOS).
 
+If the `gl-transitions` folder is missing, the conversion script will try to recover it automatically before running. You no longer need to update the submodule manually for a normal conversion run.
+
 If not specifically mentionned below, all shaders work in [Millumin 4](https://www.millumin.com/v4/index.php), [VDMX 5](https://vidvox.net/) and [ISF Editor](https://isf.vidvox.net/desktop-editor/) on macOS. Some of the shaders have also been tested on macOS in After Effects with [ISF plugin](https://github.com/baku89/ISF4AE).
 
 #### Flip
@@ -30,8 +32,11 @@ A `flip` option has been added to handle this case.
 If you want to update and convert the current `gl-transitions` repository:
 
 - Clone this repository.
-- Update submodule: `git submodule update --remote --merge`.
+- If `gl-transitions` is missing, `npm run convert` or `yarn convert` will fetch it automatically.
+- Otherwise, update the submodule if you want the latest upstream changes: `git submodule update --remote --merge`.
 - `npm run convert` or `yarn convert`.
+
+The scripts intentionally keep `package.json` without a `packageManager` field.
 
 It is strongly suggested to make a **Pull Request** if things have changed :-)!
 
