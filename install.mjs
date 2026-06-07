@@ -22,23 +22,19 @@ const install = async () => {
     throw new Error('Unable to install files, platform unrecognized.');
   }
 
-  try {
-    await fs.stat(path.resolve(folder, OUTPUT));
-    await fs.rm(path.resolve(folder, OUTPUT), {
-      recursive: true,
-      force: true,
-    });
-    await fs.mkdir(path.resolve(folder, OUTPUT));
-  } catch (err) {
-    if (err.errno === -2) {
-      await fs.mkdir(path.resolve(folder, OUTPUT));
-    } else {
-      throw err;
-    }
-  }
+  const targetFolder = path.resolve(folder, OUTPUT);
+
+  await fs.rm(targetFolder, {
+    recursive: true,
+    force: true,
+  });
+
+  await fs.mkdir(targetFolder, {
+    recursive: true,
+  });
 
   // Copy files to main directory.
-  await copy(path.resolve(folder, OUTPUT));
+  await copy(targetFolder);
 };
 
 const copy = async (folder) => {
