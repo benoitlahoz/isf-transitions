@@ -20,7 +20,7 @@ to automatically copy the converted transitions in your ISF folder (tested on ma
 
 If the `gl-transitions` folder is missing, the conversion script will try to recover it automatically before running. You no longer need to update the submodule manually for a normal conversion run.
 
-If not specifically mentionned below, all shaders work in [Millumin 4](https://www.millumin.com/v4/index.php), [VDMX 5](https://vidvox.net/) and [ISF Editor](https://isf.vidvox.net/desktop-editor/) on macOS. Some of the shaders have also been tested on macOS in After Effects with [ISF plugin](https://github.com/baku89/ISF4AE).
+If not specifically mentionned below, all shaders work in [Millumin 5](https://www.millumin.com/v5/index.php), [VDMX 5](https://vidvox.net/) and [ISF Editor](https://isf.vidvox.net/desktop-editor/) on macOS. Some of the shaders have also been tested on macOS in After Effects with [ISF plugin](https://github.com/baku89/ISF4AE).
 
 #### Flip
 
@@ -59,13 +59,6 @@ A `patches.json` file helps to make these changes automatically in a very rudime
 | -------------- | --------------------------------- | --------------------------------------------- | ----- |
 | EdgeTransition | Doesn't compile in ISF4AE plugin. | `Array size must appear after variable name.` |       |
 | StereoViewer   | Crashes in Millumin.              |                                               |       |
-
-## Thoughts
-
-**VDMX** and **ISF4AE** allow to get an internal layer as destination input of the shader (`to`). Would be great that **Millumin** implement that.
-For the time being, Millumin only allows live inputs as textures in ISF shaders.
-
-20240606 --> Should be available in next Millumin beta version! ([see here](https://forum.millumin.com/discussion/2216/isf-effects-input-texture-get-existing-layer#latest)).
 
 ## TODO
 
