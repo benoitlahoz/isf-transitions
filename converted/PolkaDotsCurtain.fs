@@ -22,12 +22,12 @@
         },
         {
             "LABEL": "From",
-            "NAME": "inputImage",
+            "NAME": "startImage",
             "TYPE": "image"
         },
         {
             "LABEL": "To",
-            "NAME": "to",
+            "NAME": "endImage",
             "TYPE": "image"
         },
         {
@@ -65,14 +65,14 @@ float ratio = RENDERSIZE.x / RENDERSIZE.y;
 
 vec4 getFromColor(vec2 uv) {
   if (flip == true) {
-    return IMG_NORM_PIXEL(inputImage, vec2(uv.x, 1. - uv.y));
+    return IMG_NORM_PIXEL(startImage, vec2(uv.x, 1. - uv.y));
   } else {
-    return IMG_NORM_PIXEL(inputImage, uv);
+    return IMG_NORM_PIXEL(startImage, uv);
   }
 }
 
 vec4 getToColor(vec2 uv) {
-  return IMG_NORM_PIXEL(to, uv);
+  return IMG_NORM_PIXEL(endImage, uv);
 }
 
 // author: bobylito

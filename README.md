@@ -24,7 +24,7 @@ If not specifically mentionned below, all shaders work in [Millumin 5](https://w
 
 #### Flip
 
-Destination (`to` input) image **appears vertically flipped in Millumin**.
+Destination (`endImage` input) image **appears vertically flipped in Millumin**.
 A `flip` option has been added to handle this case.
 
 ### Conversion
