@@ -2,7 +2,7 @@
 
 [gl-transitions](https://github.com/gl-transitions/gl-transitions) converted to [Interactive Shader Format](https://editor.isf.video/) + a very basic zero-dependency converter and installer.
 
-## v0.0.1
+## v0.0.2
 
 ### Usage
 
