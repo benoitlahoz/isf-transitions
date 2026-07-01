@@ -87,6 +87,13 @@
 			"DEFAULT": 0.0
 		},
 		{
+			"NAME": "rotationSpeed",
+			"TYPE": "float",
+			"MIN": -1.0,
+			"MAX": 1.0,
+			"DEFAULT": 0.0
+		},
+		{
 			"NAME": "zoomSpeed",
 			"TYPE": "float",
 			"MIN": 0.0,
@@ -131,13 +138,26 @@ float sampleLuma(vec2 uv) {
 // their premature transition — distinct from softness, which widens the
 // threshold band (After Effects behaviour).
 float sampleGradient(vec2 uv) {
-	// Zoom: scales the gradient map from 1x at progress=0 to 2^zoomSpeed at
-	// progress=1. Linked to progress (not TIME) so there are no cyclic jumps.
-	// Pivot is the image centre.
+	float p = clamp(progress, 0.0, 1.0);
+
+	// Rotation and zoom: both linked to progress, pivot at image centre.
+	// Guard ensures default (0) takes the exact original code path.
 	vec2 baseUV;
-	if (zoomSpeed > 0.0001) {
+	if (abs(rotationSpeed) > 0.0001 || zoomSpeed > 0.0001) {
 		vec2 c = uv - 0.5;
-		c /= pow(2.0, zoomSpeed * clamp(progress, 0.0, 1.0));
+
+		if (abs(rotationSpeed) > 0.0001) {
+			float a    = rotationSpeed * p * 6.2831853;
+			float cosA = cos(a);
+			float sinA = sin(a);
+			c = vec2(cosA * c.x - sinA * c.y,
+			         sinA * c.x + cosA * c.y);
+		}
+
+		if (zoomSpeed > 0.0001) {
+			c /= pow(2.0, zoomSpeed * p);
+		}
+
 		baseUV = c + 0.5;
 	} else {
 		baseUV = uv;
