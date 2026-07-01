@@ -65,6 +65,13 @@
 			"DEFAULT": 0.0
 		},
 		{
+			"NAME": "zoomSpeed",
+			"TYPE": "float",
+			"MIN": 0.0,
+			"MAX": 1.0,
+			"DEFAULT": 0.0
+		},
+		{
 			"NAME": "reverse",
 			"TYPE": "bool",
 			"DEFAULT": false
@@ -87,8 +94,20 @@ float sampleLuma(vec2 uv) {
 // their premature transition — distinct from softness, which widens the
 // threshold band (After Effects behaviour).
 float sampleGradient(vec2 uv) {
-	// Animated offset + seamless tiling via fract()
-	vec2 gUV = fract(uv + vec2(velocityX, velocityY) * TIME);
+	// Zoom: scales the gradient map from 1x at progress=0 to 2^zoomSpeed at
+	// progress=1. Linked to progress (not TIME) so there are no cyclic jumps.
+	// Pivot is the image centre.
+	vec2 baseUV;
+	if (zoomSpeed > 0.0001) {
+		vec2 c = uv - 0.5;
+		c /= pow(2.0, zoomSpeed * clamp(progress, 0.0, 1.0));
+		baseUV = c + 0.5;
+	} else {
+		baseUV = uv;
+	}
+
+	// Velocity: animated offset + seamless tiling via fract().
+	vec2 gUV = fract(baseUV + vec2(velocityX, velocityY) * TIME);
 
 	float radiusPx = feather * 0.15 * max(RENDERSIZE.x, RENDERSIZE.y);
 	if (radiusPx < 1.0) return sampleLuma(gUV);
@@ -126,12 +145,13 @@ void main() {
 	// reverse = true: bright pixels transition first.
 	if (reverse) L = 1.0 - L;
 
-	// eps: minimal threshold expansion to guarantee alpha=0 at p=0 and alpha=1
-	// at p=1 even when softness=0. Independent of the soft band width.
-	// s: width of the transition band (After Effects style).
-	float eps = max(s, 0.01);
-	float threshold = p * (1.0 + eps) - eps * 0.5;
-	float alpha = clamp((threshold - L) / max(s, 0.001) + 0.5, 0.0, 1.0);
+	// sw: effective band width — same value used for both the threshold position
+	// and the division, so the formula is fully consistent.
+	// min 0.01 avoids division-by-zero and gives a barely perceptible
+	// minimum softness even at s=0 (prevents knife-sharp edge artefacts).
+	float sw = max(s, 0.01);
+	float threshold = p * (1.0 + sw) - sw * 0.5;
+	float alpha = clamp((threshold - L) / sw + 0.5, 0.0, 1.0);
 
 	gl_FragColor = mix(colA, colB, alpha);
 }
