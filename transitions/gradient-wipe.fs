@@ -1,5 +1,5 @@
 /*{
-	"DESCRIPTION": "Gradient Wipe transition. A chosen image (source, destination, or external gradient map) drives the wipe through its luminance: dark pixels transition first by default. Feather spatially blurs the gradient map to smooth isolated pixels; softness widens the threshold band (After Effects style); gradientContrast sharpens or diffuses the mask; velocityX/Y animate the map in a seamless loop.",
+	"DESCRIPTION": "Gradient Wipe transition. A chosen image (source, destination, or external gradient map) drives the wipe through its luminance: dark pixels transition first by default. Feather spatially blurs the gradient map to smooth isolated pixels; softness widens the threshold band (After Effects style); gradientContrast sharpens or diffuses the mask.",
 	"CREDIT": "Benoît Lahoz",
 	"CATEGORIES": ["Transition"],
 	"INPUTS": [
@@ -51,34 +51,6 @@
 			"DEFAULT": 1.0
 		},
 		{
-			"NAME": "velocityX",
-			"TYPE": "float",
-			"MIN": -1.0,
-			"MAX": 1.0,
-			"DEFAULT": 0.0
-		},
-		{
-			"NAME": "velocityY",
-			"TYPE": "float",
-			"MIN": -1.0,
-			"MAX": 1.0,
-			"DEFAULT": 0.0
-		},
-		{
-			"NAME": "rotationSpeed",
-			"TYPE": "float",
-			"MIN": -1.0,
-			"MAX": 1.0,
-			"DEFAULT": 0.0
-		},
-		{
-			"NAME": "zoomSpeed",
-			"TYPE": "float",
-			"MIN": 0.0,
-			"MAX": 1.0,
-			"DEFAULT": 0.0
-		},
-		{
 			"NAME": "reverse",
 			"TYPE": "bool",
 			"DEFAULT": false
@@ -101,46 +73,18 @@ float sampleLuma(vec2 uv) {
 // their premature transition — distinct from softness, which widens the
 // threshold band (After Effects behaviour).
 float sampleGradient(vec2 uv) {
-	float p = clamp(progress, 0.0, 1.0);
-
-	// Rotation and zoom: both linked to progress, pivot at image centre.
-	// Guard ensures default (0) takes the exact original code path.
-	vec2 baseUV;
-	if (abs(rotationSpeed) > 0.0001 || zoomSpeed > 0.0001) {
-		vec2 c = uv - 0.5;
-
-		if (abs(rotationSpeed) > 0.0001) {
-			float a    = rotationSpeed * p * 6.2831853;
-			float cosA = cos(a);
-			float sinA = sin(a);
-			c = vec2(cosA * c.x - sinA * c.y,
-			         sinA * c.x + cosA * c.y);
-		}
-
-		if (zoomSpeed > 0.0001) {
-			c /= pow(2.0, zoomSpeed * p);
-		}
-
-		baseUV = c + 0.5;
-	} else {
-		baseUV = uv;
-	}
-
-	// Velocity: animated offset + seamless tiling via fract().
-	vec2 gUV = fract(baseUV + vec2(velocityX, velocityY) * TIME);
-
 	float radiusPx = feather * 0.15 * max(RENDERSIZE.x, RENDERSIZE.y);
-	if (radiusPx < 1.0) return sampleLuma(gUV);
+	if (radiusPx < 1.0) return sampleLuma(uv);
 
 	vec2 r = vec2(radiusPx) / RENDERSIZE.xy;
-	float total = sampleLuma(gUV);
+	float total = sampleLuma(uv);
 	float count = 1.0;
 
 	for (int i = 0; i < 8; i++) {
 		float angle = 6.2831853 * float(i) / 8.0;
 		vec2 dir = vec2(cos(angle), sin(angle));
-		total += sampleLuma(clamp(gUV + dir * r,       0.0, 1.0));
-		total += sampleLuma(clamp(gUV + dir * r * 0.5, 0.0, 1.0));
+		total += sampleLuma(clamp(uv + dir * r,       0.0, 1.0));
+		total += sampleLuma(clamp(uv + dir * r * 0.5, 0.0, 1.0));
 		count += 2.0;
 	}
 
@@ -165,10 +109,8 @@ void main() {
 	// reverse = true: bright pixels transition first.
 	if (reverse) L = 1.0 - L;
 
-	// sw: effective band width — same value used for both the threshold position
-	// and the division, so the formula is fully consistent.
-	// min 0.01 avoids division-by-zero and gives a barely perceptible
-	// minimum softness even at s=0 (prevents knife-sharp edge artefacts).
+	// sw: effective band width — same value used for both the threshold
+	// position and the division, so the formula is fully consistent.
 	float sw = max(s, 0.01);
 	float threshold = p * (1.0 + sw) - sw * 0.5;
 	float alpha = clamp((threshold - L) / sw + 0.5, 0.0, 1.0);
