@@ -2,6 +2,10 @@
 	"DESCRIPTION": "Gradient Wipe transition with bundled gradient maps. Extends Gradient Wipe 03 with additional built-in gradient images selectable via the importedGradient menu.",
 	"CREDIT": "Benoît Lahoz",
 	"CATEGORIES": ["Transition"],
+	"PASSES": [
+		{ "TARGET": "gradStats", "WIDTH": "1", "HEIGHT": "1", "FLOAT": true },
+		{ "TARGET": "" }
+	],
 	"IMPORTED": {
 		"gradientHair01": { "PATH": "gradient-wipe-hair-01.jpg" },
 		"gradientHair02": { "PATH": "gradient-wipe-hair-02.jpg" },
@@ -71,6 +75,11 @@
 			"MIN": 0.0,
 			"MAX": 4.0,
 			"DEFAULT": 1.0
+		},
+		{
+			"NAME": "normalizeGradient",
+			"TYPE": "bool",
+			"DEFAULT": false
 		},
 		{
 			"NAME": "velocityX",
@@ -185,30 +194,60 @@ float sampleGradient(vec2 uv) {
 }
 
 void main() {
-	vec2 uv = isf_FragNormCoord;
+	if (PASSINDEX == 0) {
+		// Pass 0: sample the raw gradient at a 4x4 grid to estimate its
+		// luminance range. Result stored in a 1x1 float texture:
+		//   R = average, G = minimum, B = maximum.
+		float gMin = 1.0;
+		float gMax = 0.0;
+		float total = 0.0;
+		for (int ix = 0; ix < 4; ix++) {
+			for (int iy = 0; iy < 4; iy++) {
+				vec2 suv = vec2((float(ix) + 0.5) * 0.25, (float(iy) + 0.5) * 0.25);
+				float l  = sampleLuma(suv);
+				total   += l;
+				gMin     = min(gMin, l);
+				gMax     = max(gMax, l);
+			}
+		}
+		gl_FragColor = vec4(total / 16.0, gMin, gMax, 1.0);
 
-	vec4 colA = IMG_NORM_PIXEL(startImage, uv);
-	vec4 colB = IMG_NORM_PIXEL(endImage, uv);
+	} else {
+		// Pass 1: main gradient wipe.
+		vec2 uv = isf_FragNormCoord;
 
-	float s = clamp(softness, 0.0, 1.0);
-	float p = clamp(progress, 0.0, 1.0);
+		vec4 colA = IMG_NORM_PIXEL(startImage, uv);
+		vec4 colB = IMG_NORM_PIXEL(endImage, uv);
 
-	float L = sampleGradient(uv);
+		float s = clamp(softness, 0.0, 1.0);
+		float p = clamp(progress, 0.0, 1.0);
 
-	// Gradient contrast: > 1 = sharper mask, < 1 = more diffuse transition.
-	L = clamp((L - 0.5) * gradientContrast + 0.5, 0.0, 1.0);
+		float L = sampleGradient(uv);
 
-	// Default (AE): dark pixels (low L) transition first.
-	// reverse = true: bright pixels transition first.
-	if (reverse) L = 1.0 - L;
+		// Optional luminance range normalisation using Pass 0 statistics.
+		// Stretches the gradient's actual [min, max] to [0, 1], giving a more
+		// even distribution — especially useful with startImage / endImage.
+		if (normalizeGradient) {
+			vec4  stats = IMG_NORM_PIXEL(gradStats, vec2(0.5));
+			float gMin  = stats.g;
+			float gMax  = stats.b;
+			if (gMax - gMin > 0.05)
+				L = clamp((L - gMin) / (gMax - gMin), 0.0, 1.0);
+		}
 
-	// sw: effective band width — same value used for both the threshold position
-	// and the division, so the formula is fully consistent.
-	// min 0.01 avoids division-by-zero and gives a barely perceptible
-	// minimum softness even at s=0 (prevents knife-sharp edge artefacts).
-	float sw = max(s, 0.01);
-	float threshold = p * (1.0 + sw) - sw * 0.5;
-	float alpha = clamp((threshold - L) / sw + 0.5, 0.0, 1.0);
+		// Gradient contrast: > 1 = sharper mask, < 1 = more diffuse transition.
+		L = clamp((L - 0.5) * gradientContrast + 0.5, 0.0, 1.0);
 
-	gl_FragColor = mix(colA, colB, alpha);
+		// Default (AE): dark pixels (low L) transition first.
+		// reverse = true: bright pixels transition first.
+		if (reverse) L = 1.0 - L;
+
+		// sw: effective band width — same value used for both the threshold
+		// position and the division, so the formula is fully consistent.
+		float sw = max(s, 0.01);
+		float threshold = p * (1.0 + sw) - sw * 0.5;
+		float alpha = clamp((threshold - L) / sw + 0.5, 0.0, 1.0);
+
+		gl_FragColor = mix(colA, colB, alpha);
+	}
 }
