@@ -19,7 +19,8 @@
 		"gradientHair10": { "PATH": "gradient-wipe-hair-10-tile-xy.jpg" },
 		"gradientHair11": { "PATH": "gradient-wipe-hair-11-tile-xy.jpg" },
 		"gradientHair12": { "PATH": "gradient-wipe-hair-12-tile-y.jpg" },
-		"gradientHair13": { "PATH": "gradient-wipe-hair-13-tile-y.jpg" }
+		"gradientHair13": { "PATH": "gradient-wipe-hair-13-tile-y.jpg" },
+		"gradientHair14": { "PATH": "gradient-wipe-hair-14-braid.jpg" }
 	},
 	"INPUTS": [
 		{
@@ -44,8 +45,8 @@
 		{
 			"NAME": "importedGradient",
 			"TYPE": "long",
-			"VALUES": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
-			"LABELS": ["Hair 01", "Hair 02", "Hair 03", "Hair 04", "Hair 05", "Hair 06", "Hair 07", "Hair 08", "Hair 09 (Tile X)", "Hair 10 (Tile XY)", "Hair 11 (Tile XY)", "Hair 12 (Tile Y)", "Hair 13 (Tile Y)"],
+			"VALUES": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
+			"LABELS": ["Hair 01", "Hair 02", "Hair 03", "Hair 04", "Hair 05", "Hair 06", "Hair 07", "Hair 08", "Hair 09 (Tile X)", "Hair 10 (Tile XY)", "Hair 11 (Tile XY)", "Hair 12 (Tile Y)", "Hair 13 (Tile Y)", "Hair 14 (Braid)"],
 			"DEFAULT": 0
 		},
 		{
@@ -139,6 +140,7 @@ float sampleLuma(vec2 uv) {
 	else if (importedGradient == 10) return luma(IMG_NORM_PIXEL(gradientHair11, uv));
 	else if (importedGradient == 11) return luma(IMG_NORM_PIXEL(gradientHair12, uv));
 	else if (importedGradient == 12) return luma(IMG_NORM_PIXEL(gradientHair13, uv));
+	else if (importedGradient == 13) return luma(IMG_NORM_PIXEL(gradientHair14, uv));
 	return 0.0;
 }
 
