@@ -224,7 +224,7 @@ If you want to contribute with a 'native ISF' transition, please put it in the `
   </picture>
 </a>
 
-<br>
+<br><br>
 
 [ISF Studio](https://isf-studio.app) is a desktop application for ISF, made by the author of this package.
 
