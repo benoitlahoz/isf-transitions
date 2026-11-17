@@ -220,12 +220,13 @@ If you want to contribute with a 'native ISF' transition, please put it in the `
 <a href="https://isf-studio.app">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="assets/icon-white.png">
-    <img src="assets/icon-black.png" alt="ISF Studio" width="48" align="middle">
+    <img src="assets/icon-black.png" alt="ISF Studio" width="64" align="middle">
   </picture>
 </a>
-&nbsp;<a href="https://isf-studio.app">ISF Studio</a> is a desktop application for ISF, made by the author of this package.
 
-<br><br>
+<br>
+
+[ISF Studio](https://isf-studio.app) is a desktop application for ISF, made by the author of this package.
 
 Write GLSL with a live preview or connect nodes in a pipeline, keep your whole library of shaders in order, and export ISF for VDMX, Resolume or Millumin, OpenFX plug-ins (e.g. DaVinci Resolve), videos (ProRes, MP4) and images.
 
