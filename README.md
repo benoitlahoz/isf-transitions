@@ -218,10 +218,12 @@ If you want to contribute with a 'native ISF' transition, please put it in the `
 ## ISF Studio
 
 <a href="https://isf-studio.app">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/icon-white.png">
-    <img src="assets/icon-black.png" alt="ISF Studio" width="64" align="middle">
-  </picture>
+    <div style="width: 100%; text-align: center;">
+    <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="assets/icon-white.png">
+        <img src="assets/icon-black.png" alt="ISF Studio" width="128" align="middle">
+    </picture>
+    </div>
 </a>
 
 <br><br>
