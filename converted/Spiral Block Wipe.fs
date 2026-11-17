@@ -1,0 +1,119 @@
+/*{
+    "CATEGORIES": [
+        "Transition",
+        "gl-transitions"
+    ],
+    "CREDIT": "gre - MIT",
+    "DESCRIPTION": "Square blocks switch to the incoming image one after another along a rectangular spiral, from the border inward or from the center outward (Automatically converted by @benoitlahoz 'isf-transitions').",
+    "INPUTS": [
+        {
+            "LABEL": "Progress",
+            "NAME": "progress",
+            "TYPE": "float",
+            "DEFAULT": 0,
+            "MIN": 0,
+            "MAX": 1
+        },
+        {
+            "LABEL": "From",
+            "NAME": "startImage",
+            "TYPE": "image"
+        },
+        {
+            "LABEL": "To",
+            "NAME": "endImage",
+            "TYPE": "image"
+        },
+        {
+            "LABEL": "grid",
+            "NAME": "grid_isf",
+            "TYPE": "point2D",
+            "DEFAULT": [8, 6],
+            "MIN": [0, 0],
+            "MAX": [16, 16]
+        },
+        {
+            "LABEL": "inward",
+            "NAME": "inward",
+            "TYPE": "bool",
+            "DEFAULT": true
+        },
+        {
+            "LABEL": "clockwise",
+            "NAME": "clockwise",
+            "TYPE": "bool",
+            "DEFAULT": true
+        },
+        {
+            "LABEL": "smoothness",
+            "NAME": "smoothness",
+            "TYPE": "float",
+            "DEFAULT": 0.05,
+            "MIN": 0,
+            "MAX": 0.5
+        }
+    ],
+    "ISFVSN": "2"
+}
+*/
+
+float ratio = RENDERSIZE.x / RENDERSIZE.y;
+
+vec4 getFromColor(vec2 uv) {
+  return IMG_NORM_PIXEL(startImage, uv);
+}
+
+vec4 getToColor(vec2 uv) {
+  return IMG_NORM_PIXEL(endImage, uv);
+}
+
+#define grid ivec2(grid_isf)
+
+// Position of the cell c (from the top left corner) along the spiral that runs clockwise
+// from the top left corner of a n.x by n.y grid inward, from 0 to n.x * n.y - 1
+float spiralIndex(vec2 c, vec2 n) {
+  // ring: distance to the border, in cells
+  float k = min(min(c.x, c.y), min(n.x - 1.0 - c.x, n.y - 1.0 - c.y));
+  vec2 s = n - 2.0 * k;
+  vec2 l = c - k;
+  float before = n.x * n.y - s.x * s.y;
+  float along;
+  if (l.y == 0.0) along = l.x; // top side, to the right
+  else if (l.x == s.x - 1.0) along = s.x - 1.0 + l.y; // right side, down
+  else if (l.y == s.y - 1.0) along = 2.0 * s.x + s.y - 3.0 - l.x; // bottom side, to the left
+  else along = 2.0 * (s.x - 1.0) + 2.0 * (s.y - 1.0) - l.y; // left side, up
+  return before + along;
+}
+
+vec4 transition(vec2 uv) {
+  vec2 n = max(vec2(grid), vec2(1.0));
+  vec2 c = min(floor(vec2(uv.x, 1.0 - uv.y) * n), n - 1.0);
+  // the transposed spiral turns the other way from the same corner; walking the spiral
+  // outward reverses it too
+  if (clockwise != inward) {
+    c = c.yx;
+    n = n.yx;
+  }
+  float count = n.x * n.y;
+  float i = spiralIndex(c, n);
+  if (!inward) i = count - 1.0 - i;
+
+  // the blocks switch one after another, each one fading in over w blocks of time, the first
+  // fade starting at 0 and the last ending at 1; without fade, block i switches at (i + 0.5) / count
+  float w = max(smoothness, 0.0) * count;
+  float o = max(0.5 * (1.0 - w), 0.0);
+  float x = progress * (count - 1.0 + 2.0 * o + w) - i - o;
+  float m = w > 0.0 ? smoothstep(0.0, w, x) : step(0.0, x);
+
+  if (m <= 0.0) return getFromColor(uv);
+  if (m >= 1.0) return getToColor(uv);
+  vec4 a = getFromColor(uv);
+  vec4 b = getToColor(uv);
+  // mixed premultiplied, so transparent images do not bleed their color
+  vec4 col = mix(vec4(a.rgb * a.a, a.a), vec4(b.rgb * b.a, b.a), m);
+  return col.a > 0.0 ? vec4(col.rgb / col.a, col.a) : vec4(0.0);
+}
+
+void main() {
+  gl_FragColor = transition(isf_FragNormCoord);
+}

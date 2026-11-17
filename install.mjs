@@ -57,17 +57,11 @@ const install = async () => {
 };
 
 const copy = async (folder) => {
-  const files = await fs.readdir(path.resolve(__dirname, INPUT), {
-    withFileTypes: true,
-  });
+  const input = path.resolve(__dirname, INPUT);
+  const files = await fs.readdir(input);
 
-  for await (const file of files) {
-    const content = await fs.readFile(
-      path.resolve(file.path, file.name),
-      'utf-8'
-    );
-
-    await fs.writeFile(path.join(folder, file.name), content, 'utf-8');
+  for (const file of files) {
+    await fs.copyFile(path.join(input, file), path.join(folder, file));
   }
 };
 

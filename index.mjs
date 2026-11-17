@@ -1,17 +1,22 @@
 'use strict';
 
-import { promises as fs, statSync } from 'fs';
+import { promises as fs } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { buildModules } from './modules.mjs';
+import {
+  buildThirdPartyLicenses,
+  extractLicenseNotice,
+} from './licenses.mjs';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
-import { convertGLSLToISF } from './convert.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const execFileAsync = promisify(execFile);
 
 const DIR = 'converted';
+const THIRD_PARTY_LICENSES = 'THIRD_PARTY_LICENSES.md';
 const GL_TRANSITIONS_DIR = path.resolve(__dirname, 'gl-transitions');
 const GL_TRANSITIONS_TRANSITIONS_DIR = path.resolve(
   GL_TRANSITIONS_DIR,
@@ -35,6 +40,27 @@ const removePackageManagerField = async () => {
   }
 
   delete packageJson.packageManager;
+  await fs.writeFile(
+    packageJsonPath,
+    `${JSON.stringify(packageJson, null, 2)}\n`,
+    'utf-8'
+  );
+};
+
+// The version of this package is the one of the gl-transitions package it is converted from.
+const syncVersion = async () => {
+  const { version } = JSON.parse(
+    await fs.readFile(
+      path.join(GL_TRANSITIONS_DIR, 'packages', 'gl-transitions', 'package.json'),
+      'utf-8'
+    )
+  );
+
+  const packageJsonPath = path.resolve(__dirname, 'package.json');
+  const packageJson = JSON.parse(await fs.readFile(packageJsonPath, 'utf-8'));
+  if (packageJson.version === version) return;
+
+  packageJson.version = version;
   await fs.writeFile(
     packageJsonPath,
     `${JSON.stringify(packageJson, null, 2)}\n`,
@@ -104,55 +130,69 @@ const ensureTransitionsDirectory = async () => {
 const convert = async () => {
   try {
     await ensureTransitionsDirectory();
+    await syncVersion();
 
-    const res = await fs.readdir(GL_TRANSITIONS_TRANSITIONS_DIR, {
-      withFileTypes: true,
-    });
+    // Loaded now because it relies on the gl-transitions repository.
+    const { convertGLSLToISF, toDisplayName } = await import('./convert.mjs');
 
-    const directories = res.filter((file) =>
-      statSync(path.resolve(file.path, file.name)).isDirectory()
-    );
-    const files = res.filter(
-      (file) => !statSync(path.resolve(file.path, file.name)).isDirectory()
+    const files = (await fs.readdir(GL_TRANSITIONS_TRANSITIONS_DIR)).filter(
+      (file) => path.extname(file) === '.glsl'
     );
 
-    for await (const file of files) {
+    const licenses = [];
+    const modules = [];
+
+    for (const file of files) {
+      const name = path.parse(file).name;
       const content = await fs.readFile(
-        path.resolve(file.path, file.name),
+        path.join(GL_TRANSITIONS_TRANSITIONS_DIR, file),
         'utf-8'
       );
-      const res = convertGLSLToISF(path.parse(file.name).name, content);
+      const converted = convertGLSLToISF(name, content);
 
       await fs.writeFile(
-        path.join(__dirname, DIR, `${path.parse(file.name).name}.fs`),
-        res.content,
+        path.join(__dirname, DIR, `${toDisplayName(name)}.fs`),
+        converted.content,
         'utf-8'
       );
 
-      errors.push(...res.errors);
-    }
-
-    for await (const dir of directories) {
-      const res = await fs.readdir(path.resolve(dir.path, dir.name), {
-        withFileTypes: true,
+      errors.push(...converted.errors);
+      modules.push({
+        name,
+        title: toDisplayName(name),
+        file: `${toDisplayName(name)}.fs`,
+        author: converted.author,
+        license: converted.license,
+        description: converted.description,
+        content: converted.content,
       });
-
-      for (const file of res) {
-        const content = await fs.readFile(
-          path.resolve(file.path, file.name),
-          'utf-8'
-        );
-        const converted = convertGLSLToISF(path.parse(file.name).name, content);
-
-        await fs.writeFile(
-          path.join(__dirname, DIR, `${path.parse(file.name).name}.fs`),
-          converted.content,
-          'utf-8'
-        );
-
-        errors.push(...converted.errors);
-      }
+      licenses.push({
+        file: `${toDisplayName(name)}.fs`,
+        author: converted.author,
+        license: converted.license,
+        notice:
+          converted.license === 'MIT' ? undefined : extractLicenseNotice(content),
+      });
     }
+
+    const built = buildModules(modules);
+    for (const [file, content] of [
+      ['transitions.mjs', built.transitions],
+      ['transitions.d.ts', built.transitionsTypes],
+      ['catalog.mjs', built.catalog],
+      ['catalog.d.ts', built.catalogTypes],
+    ]) {
+      await fs.writeFile(path.join(__dirname, file), content, 'utf-8');
+    }
+
+    await fs.writeFile(
+      path.join(__dirname, THIRD_PARTY_LICENSES),
+      buildThirdPartyLicenses(
+        licenses,
+        await fs.readFile(path.join(GL_TRANSITIONS_DIR, 'LICENSE'), 'utf-8')
+      ),
+      'utf-8'
+    );
 
     errors.push(
       '',

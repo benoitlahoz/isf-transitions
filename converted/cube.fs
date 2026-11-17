@@ -3,22 +3,16 @@
         "Transition",
         "gl-transitions"
     ],
-    "CREDIT": "gre",
-    "DESCRIPTION": "cube - License MIT (Automatically converted by @benoitlahoz 'isf-transitions').",
+    "CREDIT": "gre - MIT",
+    "DESCRIPTION": "The two images are faces of a box that turns a quarter turn in perspective, the outgoing face darkening as it turns away, above a reflective floor (Automatically converted by @benoitlahoz 'isf-transitions').",
     "INPUTS": [
         {
-            "DEFAULT": false,
-            "LABEL": "Flip",
-            "NAME": "flip",
-            "TYPE": "bool"
-        },
-        {
-            "DEFAULT": 0,
             "LABEL": "Progress",
-            "MAX": 1,
-            "MIN": 0,
             "NAME": "progress",
-            "TYPE": "float"
+            "TYPE": "float",
+            "DEFAULT": 0,
+            "MIN": 0,
+            "MAX": 1
         },
         {
             "LABEL": "From",
@@ -33,120 +27,158 @@
         {
             "LABEL": "persp",
             "NAME": "persp",
-            "DEFAULT": 0.7,
             "TYPE": "float",
-            "MAX": 1000,
-            "MIN": 0
+            "DEFAULT": 0.7,
+            "MIN": 0,
+            "MAX": 1
         },
         {
             "LABEL": "unzoom",
             "NAME": "unzoom",
-            "DEFAULT": 0.3,
             "TYPE": "float",
-            "MAX": 1000,
-            "MIN": 0
+            "DEFAULT": 0.3,
+            "MIN": 0,
+            "MAX": 1
         },
         {
             "LABEL": "reflection",
             "NAME": "reflection",
-            "DEFAULT": 0.4,
             "TYPE": "float",
-            "MAX": 1000,
-            "MIN": 0
+            "DEFAULT": 0.4,
+            "MIN": 0,
+            "MAX": 1
         },
         {
             "LABEL": "floating",
             "NAME": "floating",
-            "DEFAULT": 3.0,
             "TYPE": "float",
-            "MAX": 1000,
-            "MIN": 0
+            "DEFAULT": 3,
+            "MIN": 0,
+            "MAX": 20
+        },
+        {
+            "LABEL": "shading",
+            "NAME": "shading",
+            "TYPE": "float",
+            "DEFAULT": 0.5,
+            "MIN": 0,
+            "MAX": 1
         }
     ],
     "ISFVSN": "2"
 }
 */
+
 float ratio = RENDERSIZE.x / RENDERSIZE.y;
 
 vec4 getFromColor(vec2 uv) {
-  if (flip == true) {
-    return IMG_NORM_PIXEL(startImage, vec2(uv.x, 1. - uv.y));
-  } else {
-    return IMG_NORM_PIXEL(startImage, uv);
-  }
+  return IMG_NORM_PIXEL(startImage, uv);
 }
 
 vec4 getToColor(vec2 uv) {
   return IMG_NORM_PIXEL(endImage, uv);
 }
 
-// Author: gre
-// License: MIT
+const float PI = 3.141592653589793;
+const float EDGE = 0.002;
 
-vec2 project (vec2 p) {
-  return p * vec2(1.0, -1.2) + vec2(0.0, -floating/100.);
+// the ray (eye, dir) in the box's frame, the box turned by (c, s) around its vertical axis:
+// returns (distance along the ray, horizontal position on the face, height, face) with face 0 for
+// the outgoing image's face, 1 for the incoming one's, and a negative distance where it misses
+vec4 hitBox(vec3 eye, vec3 dir, float w, float c, float s) {
+  vec2 pivot = vec2(0.5 * w);
+  vec2 e = eye.xz - pivot;
+  vec2 o = vec2(e.x * c + e.y * s, -e.x * s + e.y * c) + pivot;
+  vec2 d = vec2(dir.x * c + dir.z * s, -dir.x * s + dir.z * c);
+  vec2 inv = 1.0 / vec2(d.x < 0.0 ? min(d.x, -1e-6) : max(d.x, 1e-6), d.y < 0.0 ? min(d.y, -1e-6) : max(d.y, 1e-6));
+  vec2 t0 = (vec2(0.0) - o) * inv;
+  vec2 t1 = (vec2(w) - o) * inv;
+  vec2 tn = min(t0, t1);
+  vec2 tf = max(t0, t1);
+  float tin = max(tn.x, tn.y);
+  if (tin <= 0.0 || tin > min(tf.x, tf.y)) return vec4(-1.0);
+  vec2 hit = o + tin * d;
+  float y = eye.y + tin * dir.y;
+  if (y < 0.0 || y > 1.0) return vec4(-1.0);
+  // the face first entered: z = 0 is the outgoing face, x = 0 the incoming one, the others are hidden
+  if (tn.y >= tn.x) {
+    if (d.y <= 0.0) return vec4(-1.0);
+    return vec4(tin, hit.x / w, y, 0.0);
+  }
+  if (d.x <= 0.0) return vec4(-1.0);
+  return vec4(tin, 1.0 - hit.y / w, y, 1.0);
 }
 
-bool inBounds (vec2 p) {
-  return all(lessThan(vec2(0.0), p)) && all(lessThan(p, vec2(1.0)));
-}
+vec4 transition(vec2 uv) {
+  float w = ratio;
+  float turn = progress * progress * (3.0 - 2.0 * progress);
+  float a = 0.5 * PI * turn;
+  float c = cos(a), s = sin(a);
+  if (progress >= 1.0) { c = 0.0; s = 1.0; }
+  // 0 at both ends, for exact images and hard edges there
+  float motion = sin(PI * clamp(progress, 0.0, 1.0));
+  float zoom = 1.0 + max(unzoom, 0.0) * motion;
 
-vec4 bgColor (vec2 p, vec2 pfr, vec2 pto) {
-  vec4 c = vec4(0.0, 0.0, 0.0, 1.0);
-  pfr = project(pfr);
-  // FIXME avoid branching might help perf!
-  if (inBounds(pfr)) {
-    c += mix(vec4(0.0), getFromColor(pfr), reflection * mix(1.0, 0.0, pfr.y));
-  }
-  pto = project(pto);
-  if (inBounds(pto)) {
-    c += mix(vec4(0.0), getToColor(pto), reflection * mix(1.0, 0.0, pto.y));
-  }
-  return c;
-}
+  // the front of the box is the screen: the camera keeps it framed, pulling back mid-turn
+  float dist = 0.8 * max(w, 1.0) / clamp(persp, 0.01, 1.0);
+  vec3 eye = vec3(0.5 * w, 0.5, -dist);
+  vec2 sp = (uv - 0.5) * zoom + 0.5;
+  vec3 dir = vec3(sp.x * w, sp.y, 0.0) - eye;
 
-// p : the position
-// persp : the perspective in [ 0, 1 ]
-// center : the xcenter in [0, 1] \ 0.5 excluded
-vec2 xskew (vec2 p, float persp, float center) {
-  float x = mix(p.x, 1.0-p.x, center);
-  return (
-    (
-      vec2( x, (p.y - 0.5*(1.0-persp) * x) / (1.0+(persp-1.0)*x) )
-      - vec2(0.5-distance(center, 0.5), 0.0)
-    )
-    * vec2(0.5 / distance(center, 0.5) * (center<0.5 ? 1.0 : -1.0), 1.0)
-    + vec2(center<0.5 ? 0.0 : 1.0, 0.0)
-  );
-}
+  float px = EDGE * zoom * min(10.0 * motion, 1.0);
+  float shade0 = 1.0 - shading * (1.0 - c);
+  float shade1 = 1.0 - shading * (1.0 - s);
 
-vec4 transition(vec2 op) {
-  float uz = unzoom * 2.0*(0.5-distance(0.5, progress));
-  vec2 p = -uz*0.5+(1.0+uz) * op;
-  vec2 fromP = xskew(
-    (p - vec2(progress, 0.0)) / vec2(1.0-progress, 1.0),
-    1.0-mix(progress, 0.0, persp),
-    0.0
-  );
-  vec2 toP = xskew(
-    p / vec2(progress, 1.0),
-    mix(pow(progress, 2.0), 1.0, persp),
-    1.0
-  );
-  // FIXME avoid branching might help perf!
-  if (inBounds(fromP)) {
-    return getFromColor(fromP);
+  vec4 front = vec4(0.0);
+  vec4 b = hitBox(eye, dir, w, c, s);
+  if (b.x > 0.0) {
+    vec4 img = b.w < 0.5 ? getFromColor(vec2(b.y, b.z)) : getToColor(vec2(b.y, b.z));
+    float m = 1.0;
+    if (px > 0.0) {
+      float e = px * b.x;
+      vec3 n = b.w < 0.5 ? vec3(s, 0.0, -c) : vec3(-c, 0.0, -s);
+      float fore = max(abs(dot(n, normalize(dir))), 0.05);
+      float edge = b.w < 0.5 ? 1.0 - b.y : b.y;
+      m = clamp(min(b.z, 1.0 - b.z) / e, 0.0, 1.0)
+        * clamp(edge * w * fore / e, 0.0, 1.0);
+    }
+    // where the box covers the pixel, nothing behind it shows: the exact image at both ends
+    if (m >= 1.0 && img.a >= 1.0) {
+      return vec4(img.rgb * (b.w < 0.5 ? shade0 : shade1), img.a);
+    }
+    front = vec4(img.rgb * (b.w < 0.5 ? shade0 : shade1) * img.a, img.a) * m;
   }
-  else if (inBounds(toP)) {
-    return getToColor(toP);
+
+  vec4 ground = vec4(0.0);
+  float h = 0.005 * max(floating, 0.0);
+  if (dir.y < 0.0 && motion > 0.0) {
+    float tf = -(eye.y + h) / dir.y;
+    vec3 f = eye + tf * dir;
+    vec3 meye = vec3(eye.x, -2.0 * h - eye.y, eye.z);
+    vec3 mdir = vec3(dir.x, -dir.y, dir.z);
+    vec4 r = hitBox(meye, mdir, w, c, s);
+    if (r.x > 0.0) {
+      vec4 img = r.w < 0.5 ? getFromColor(vec2(r.y, r.z)) : getToColor(vec2(r.y, r.z));
+      float k = clamp(reflection, 0.0, 1.0) * (1.0 - r.z) * (1.0 - r.z);
+      ground = vec4(img.rgb * (r.w < 0.5 ? shade0 : shade1) * img.a, img.a) * k;
+    }
+    vec2 q = f.xz - vec2(0.5 * w);
+    vec2 l = vec2(q.x * c + q.y * s, -q.x * s + q.y * c);
+    float soft = 0.03 + 1.5 * h;
+    float sh = shading * 0.7 * exp(-length(max(abs(l) - vec2(0.5 * w), 0.0)) / soft);
+    // only as opaque as the bottom of the nearest face
+    vec2 bl = l + vec2(0.5 * w);
+    sh *= l.y < l.x
+      ? getFromColor(vec2(clamp(bl.x / w, 0.0, 1.0), 0.0)).a
+      : getToColor(vec2(clamp(1.0 - bl.y / w, 0.0, 1.0), 0.0)).a;
+    ground = ground * (1.0 - sh) + vec4(0.0, 0.0, 0.0, sh);
+    ground *= min(6.0 * motion, 1.0);
   }
-  return bgColor(op, fromP, toP);
+
+  vec4 color = front + ground * (1.0 - front.a);
+  return color.a > 0.0 ? vec4(color.rgb / color.a, color.a) : vec4(0.0);
 }
 
 void main() {
-	if (flip == true) {
-    gl_FragColor = transition(vec2(isf_FragNormCoord.x, 1. - isf_FragNormCoord.y));
-  } else {
-    gl_FragColor = transition(isf_FragNormCoord);
-  }
+  gl_FragColor = transition(isf_FragNormCoord);
 }

@@ -3,22 +3,16 @@
         "Transition",
         "gl-transitions"
     ],
-    "CREDIT": "Gaëtan Renaudeau",
-    "DESCRIPTION": "Directional - License MIT (Automatically converted by @benoitlahoz 'isf-transitions').",
+    "CREDIT": "Gaëtan Renaudeau - MIT",
+    "DESCRIPTION": "The incoming image pushes the outgoing one out in a given direction (Automatically converted by @benoitlahoz 'isf-transitions').",
     "INPUTS": [
         {
-            "DEFAULT": false,
-            "LABEL": "Flip",
-            "NAME": "flip",
-            "TYPE": "bool"
-        },
-        {
-            "DEFAULT": 0,
             "LABEL": "Progress",
-            "MAX": 1,
-            "MIN": 0,
             "NAME": "progress",
-            "TYPE": "float"
+            "TYPE": "float",
+            "DEFAULT": 0,
+            "MIN": 0,
+            "MAX": 1
         },
         {
             "LABEL": "From",
@@ -34,42 +28,24 @@
             "LABEL": "direction",
             "NAME": "direction",
             "TYPE": "point2D",
-            
-            "DEFAULT": [
-              0.0,
-              1.0
-            ],
-            
-            "MIN": [
-              0,
-              0
-            ],
-            "MAX": [
-              9000,
-              9000
-            ]
+            "DEFAULT": [0, 1],
+            "MIN": [-4, -4],
+            "MAX": [4, 4]
         }
     ],
     "ISFVSN": "2"
 }
 */
+
 float ratio = RENDERSIZE.x / RENDERSIZE.y;
 
 vec4 getFromColor(vec2 uv) {
-  if (flip == true) {
-    return IMG_NORM_PIXEL(startImage, vec2(uv.x, 1. - uv.y));
-  } else {
-    return IMG_NORM_PIXEL(startImage, uv);
-  }
+  return IMG_NORM_PIXEL(startImage, uv);
 }
 
 vec4 getToColor(vec2 uv) {
   return IMG_NORM_PIXEL(endImage, uv);
 }
-
-// Author: Gaëtan Renaudeau
-// License: MIT
-
 
 vec4 transition (vec2 uv) {
   vec2 p = uv + progress * sign(direction);
@@ -82,9 +58,5 @@ vec4 transition (vec2 uv) {
 }
 
 void main() {
-	if (flip == true) {
-    gl_FragColor = transition(vec2(isf_FragNormCoord.x, 1. - isf_FragNormCoord.y));
-  } else {
-    gl_FragColor = transition(isf_FragNormCoord);
-  }
+  gl_FragColor = transition(isf_FragNormCoord);
 }

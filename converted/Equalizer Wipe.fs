@@ -1,0 +1,165 @@
+/*{
+    "CATEGORIES": [
+        "Transition",
+        "gl-transitions"
+    ],
+    "CREDIT": "gre - MIT",
+    "DESCRIPTION": "The incoming image rises from the bottom of the frame in vertical bars that bounce up and down like an audio equalizer, lit in segments and each topped by a floating peak cap that falls back slowly, their average level climbing until they fill the frame (Automatically converted by @benoitlahoz 'isf-transitions').",
+    "INPUTS": [
+        {
+            "LABEL": "Progress",
+            "NAME": "progress",
+            "TYPE": "float",
+            "DEFAULT": 0,
+            "MIN": 0,
+            "MAX": 1
+        },
+        {
+            "LABEL": "From",
+            "NAME": "startImage",
+            "TYPE": "image"
+        },
+        {
+            "LABEL": "To",
+            "NAME": "endImage",
+            "TYPE": "image"
+        },
+        {
+            "LABEL": "bars",
+            "NAME": "bars",
+            "TYPE": "long",
+            "DEFAULT": 16,
+            "VALUES": [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48],
+            "LABELS": ["4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "31", "32", "33", "34", "35", "36", "37", "38", "39", "40", "41", "42", "43", "44", "45", "46", "47", "48"]
+        },
+        {
+            "LABEL": "bounce",
+            "NAME": "bounce",
+            "TYPE": "float",
+            "DEFAULT": 0.3,
+            "MIN": 0,
+            "MAX": 0.6
+        },
+        {
+            "LABEL": "segments",
+            "NAME": "segments",
+            "TYPE": "long",
+            "DEFAULT": 24,
+            "VALUES": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64],
+            "LABELS": ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "31", "32", "33", "34", "35", "36", "37", "38", "39", "40", "41", "42", "43", "44", "45", "46", "47", "48", "49", "50", "51", "52", "53", "54", "55", "56", "57", "58", "59", "60", "61", "62", "63", "64"]
+        },
+        {
+            "LABEL": "capColor",
+            "NAME": "capColor",
+            "TYPE": "color",
+            "DEFAULT": [1, 1, 1, 1],
+            "MIN": [0, 0, 0, 0],
+            "MAX": [1, 1, 1, 1]
+        }
+    ],
+    "ISFVSN": "2"
+}
+*/
+
+float ratio = RENDERSIZE.x / RENDERSIZE.y;
+
+vec4 getFromColor(vec2 uv) {
+  return IMG_NORM_PIXEL(startImage, uv);
+}
+
+vec4 getToColor(vec2 uv) {
+  return IMG_NORM_PIXEL(endImage, uv);
+}
+
+const float PI = 3.141592653589793;
+const float AA = 0.0015;
+const float CAP = 0.012;
+const float CAP_GAP = 0.008;
+
+float hash11(float n) {
+  n = fract(n * 0.1031);
+  n *= n + 33.33;
+  n *= n + n;
+  return fract(n);
+}
+
+// level of bar i (0 at the bottom of the frame, 1 at the top) at progress t: an eased average
+// level climbing from below the frame to above it, plus a bounce that is zero at both ends.
+// k holds the bar's own speeds and phases, lead how far it runs ahead of the others
+float level(float i, vec4 k, float lead, float t, float amp) {
+  t = clamp(t, 0.0, 1.0);
+  float env = sin(PI * t);
+  float ramp = t * t * (3.0 - 2.0 * t);
+  float base = mix(-0.03, 1.04, mix(t, ramp, 0.3));
+  float w = 2.0 * PI * t;
+  float osc = 0.5 * sin(w * k.x + k.y) + 0.3 * sin(w * k.z + k.w) + 0.2 * sin(w * 2.2 - 0.55 * i);
+  return base + amp * env * (osc + lead);
+}
+
+vec4 transition(vec2 uv) {
+  float n = float(bars < 1 ? 1 : bars);
+  float amp = max(bounce, 0.0);
+  float x = uv.x * n;
+  float i = min(floor(x), n - 1.0);
+  float fx = x - i;
+  float aaX = AA * n / ratio;
+
+  vec4 k = vec4(
+    3.0 + 1.5 * hash11(i + 3.0), 2.0 * PI * hash11(i),
+    5.5 + 2.0 * hash11(i + 7.0), 2.0 * PI * hash11(i + 11.0)
+  );
+  float lead = 0.35 * (hash11(i + 19.0) - 0.5);
+  float h = level(i, k, lead, progress, amp);
+  // the peak cap: the highest recent level, held a moment then falling back faster and faster
+  float peak = h;
+  for (int j = 1; j < 12; j++) {
+    float dt = float(j) * 0.012;
+    float fall = max(dt - 0.03, 0.0);
+    peak = max(peak, level(i, k, lead, progress - dt, amp) - 60.0 * fall * fall);
+  }
+  float capY = peak + CAP_GAP;
+
+  // a gap thinner than the antialiasing fades out instead of blurring the sides of the bar
+  float open = 1.0 - smoothstep(0.72, 0.97, progress);
+  float gap = 0.09 * open;
+  float side = min(fx, 1.0 - fx);
+  float inGap = clamp((gap - side) / (2.0 * aaX) + 0.5, 0.0, 1.0) * min(gap / aaX, 1.0);
+  float barX = 1.0 - inGap;
+
+  vec4 b = getToColor(uv);
+  float fill;
+  float lit;
+  if (segments > 0) {
+    float segs = float(segments);
+    float above = h * segs - floor(uv.y * segs);
+    fill = clamp(above, 0.0, 1.0);
+    lit = 1.0 - clamp(above - 1.0, 0.0, 1.0);
+    float seam = abs(fract(uv.y * segs) - 0.5) * 2.0;
+    float aaS = AA * segs * 2.0;
+    b.rgb *= 1.0 - 0.38 * open * smoothstep(0.78 - aaS, 0.78 + aaS, seam);
+  } else {
+    fill = 1.0 - smoothstep(h - AA, h + AA, uv.y);
+    lit = 1.0 - smoothstep(0.0, 0.04, h - uv.y);
+  }
+  b.rgb += 0.2 * open * lit * (1.0 - b.rgb);
+  float across = 2.0 * fx - 1.0;
+  b.rgb *= 1.0 - 0.15 * open * across * across;
+  float m = barX * fill;
+
+  vec4 a = getFromColor(uv);
+  float beside = (1.0 - smoothstep(0.0, gap, gap - side)) * (1.0 - smoothstep(h - 0.01, h + 0.01, uv.y));
+  float under = barX * smoothstep(capY - 0.025, capY, uv.y) * (1.0 - smoothstep(capY - AA, capY + AA, uv.y));
+  a.rgb *= 1.0 - open * (0.35 * inGap * beside + 0.4 * under);
+
+  // mixed premultiplied, so transparent images do not bleed their color
+  vec4 c = mix(vec4(a.rgb * a.a, a.a), vec4(b.rgb * b.a, b.a), m);
+
+  float cap = barX * smoothstep(capY - AA, capY + AA, uv.y) * (1.0 - smoothstep(capY + CAP - AA, capY + CAP + AA, uv.y));
+  cap *= capColor.a * smoothstep(0.0, 0.05, progress) * (1.0 - smoothstep(0.95, 1.0, progress));
+  c = mix(c, vec4(capColor.rgb, 1.0), cap);
+  return c.a > 0.0 ? vec4(c.rgb / c.a, c.a) : vec4(0.0);
+}
+
+void main() {
+  gl_FragColor = transition(isf_FragNormCoord);
+}

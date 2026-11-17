@@ -1,0 +1,197 @@
+/*{
+    "CATEGORIES": [
+        "Transition",
+        "gl-transitions"
+    ],
+    "CREDIT": "gre - MIT",
+    "DESCRIPTION": "The incoming image is rebuilt as a stack of cut paper sheets, one per band of brightness: from the darkest to the lightest, each sheet slides in lifted above the stack, drops into place with a soft shadow on the sheets below, then the paper flattens into the photo (Automatically converted by @benoitlahoz 'isf-transitions').",
+    "INPUTS": [
+        {
+            "LABEL": "Progress",
+            "NAME": "progress",
+            "TYPE": "float",
+            "DEFAULT": 0,
+            "MIN": 0,
+            "MAX": 1
+        },
+        {
+            "LABEL": "From",
+            "NAME": "startImage",
+            "TYPE": "image"
+        },
+        {
+            "LABEL": "To",
+            "NAME": "endImage",
+            "TYPE": "image"
+        },
+        {
+            "LABEL": "layers",
+            "NAME": "layers",
+            "TYPE": "long",
+            "DEFAULT": 5,
+            "VALUES": [2, 3, 4, 5, 6, 7, 8],
+            "LABELS": ["2", "3", "4", "5", "6", "7", "8"]
+        },
+        {
+            "LABEL": "colorful",
+            "NAME": "colorful",
+            "TYPE": "float",
+            "DEFAULT": 0.7,
+            "MIN": 0,
+            "MAX": 1
+        },
+        {
+            "LABEL": "shadow",
+            "NAME": "shadow",
+            "TYPE": "float",
+            "DEFAULT": 0.6,
+            "MIN": 0,
+            "MAX": 1
+        },
+        {
+            "LABEL": "paper",
+            "NAME": "paper",
+            "TYPE": "color",
+            "DEFAULT": [0.97, 0.94, 0.88, 1],
+            "MIN": [0, 0, 0, 0],
+            "MAX": [1, 1, 1, 1]
+        }
+    ],
+    "ISFVSN": "2"
+}
+*/
+
+float ratio = RENDERSIZE.x / RENDERSIZE.y;
+
+vec4 getFromColor(vec2 uv) {
+  return IMG_NORM_PIXEL(startImage, uv);
+}
+
+vec4 getToColor(vec2 uv) {
+  return IMG_NORM_PIXEL(endImage, uv);
+}
+
+const float MAX_LAYERS = 8.0;
+// part of the progress at which the last sheet lands, and longest duration of the slide of one sheet
+const float STACKED = 0.74;
+const float SLIDE = 0.2;
+// height a sheet falls from, as the extra distance its shadow is cast at
+const float LIFT = 3.0;
+const vec2 SHADOW = vec2(0.012, -0.018);
+// softness of the cut edges and of the shadows' edges, in brightness
+const float CUT = 0.012;
+const float SHADOW_CUT = 0.05;
+// radius over which the brightness is softened before it is cut, so that the cuts follow smooth curves,
+// and the wider one for the shadows, in frame heights
+const float BLUR = 0.004;
+const float SHADOW_BLUR = 0.01;
+const float EDGE = 0.0015;
+
+float luma(vec4 c) {
+  return dot(c.rgb, vec3(0.299, 0.587, 0.114));
+}
+
+float plHash(vec2 p) {
+  vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+  p3 += dot(p3, p3.yzx + 33.33);
+  return fract((p3.x + p3.y) * p3.z);
+}
+
+float grain(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(plHash(i), plHash(i + vec2(1.0, 0.0)), f.x),
+    mix(plHash(i + vec2(0.0, 1.0)), plHash(i + vec2(1.0, 1.0)), f.x),
+    f.y
+  );
+}
+
+// mirrored coordinates, so that a shifted lookup never smears the frame's border
+vec2 mirror(vec2 v) {
+  return 1.0 - abs(1.0 - mod(v, 2.0));
+}
+
+// brightness of the incoming image at p (whose color is c) softened over a disc of the given radius in frame heights
+float softLuma(vec2 p, vec4 c, float radius, vec2 aspect) {
+  vec2 r = radius / aspect;
+  float l = luma(c);
+  l += luma(getToColor(mirror(p + r * vec2(0.0, 1.0))));
+  l += luma(getToColor(mirror(p + r * vec2(0.866, -0.5))));
+  l += luma(getToColor(mirror(p + r * vec2(-0.866, -0.5))));
+  return l / 4.0;
+}
+
+// coverage of sheet k of n: the whole frame for the first one, else where the softened brightness l reaches its threshold
+float cut(float k, float n, float l, float soft) {
+  if (k < 0.5) return 1.0;
+  float thr = k / n;
+  return smoothstep(thr - soft, thr + soft, l);
+}
+
+vec4 transition(vec2 uv) {
+  float n = clamp(float(layers), 2.0, MAX_LAYERS);
+  float sh = clamp(shadow, 0.0, 1.0);
+  vec2 aspect = vec2(ratio, 1.0);
+  vec2 shadowOffset = SHADOW / aspect;
+  float toPhoto = smoothstep(STACKED - 0.03, 1.0, progress);
+
+  // the incoming image where the sheets lie on the stack, and where they cast their shadow
+  // (only looked up once the first sheet has landed)
+  vec4 rest = getToColor(uv);
+  float restLuma = 0.0;
+  vec4 restShadowColor = vec4(0.0);
+  float restShadow = 0.0;
+  float n1 = n - 1.0;
+  // duration of the slide of one sheet, short enough that at most two sheets slide at once
+  float slide = min(SLIDE, 2.0 * STACKED / (n1 + 2.0));
+  float spacing = (STACKED - slide) / n1;
+  if (progress >= slide) {
+    restLuma = softLuma(uv, rest, BLUR, aspect);
+    vec2 ps = uv - shadowOffset;
+    restShadowColor = getToColor(mirror(ps));
+    restShadow = softLuma(ps, restShadowColor, SHADOW_BLUR, aspect);
+  }
+
+  vec4 color = getFromColor(uv);
+  for (float k = 0.0; k < MAX_LAYERS; k += 1.0) {
+    if (k < n) {
+      float t = clamp((progress - k * spacing) / slide, 0.0, 1.0);
+      if (t > 0.0) {
+        float e = 1.0 - (1.0 - t) * (1.0 - t) * (1.0 - t);
+        float lift = 1.0 - smoothstep(0.5, 1.0, t);
+        vec2 q = (uv - 0.5) / (1.0 + 0.03 * lift) + 0.5;
+        q.y -= (1.0 - e) * 1.15;
+        vec2 so = shadowOffset * (1.0 + LIFT * lift);
+        vec4 src = rest;
+        float l = restLuma;
+        float ls = restShadow;
+        float shadowAlpha = restShadowColor.a;
+        if (t < 1.0) {
+          src = getToColor(mirror(q));
+          l = softLuma(q, src, BLUR, aspect);
+          vec4 cs = getToColor(mirror(q - so));
+          ls = softLuma(q - so, cs, SHADOW_BLUR, aspect);
+          shadowAlpha = cs.a;
+        }
+        float m = cut(k, n, l, CUT) * src.a * smoothstep(-EDGE, EDGE, q.y);
+        float s = cut(k, n, ls, SHADOW_CUT) * shadowAlpha * smoothstep(-EDGE, EDGE, q.y - so.y);
+        color.rgb *= 1.0 - sh * (1.0 - toPhoto) * (0.7 - 0.35 * lift) * s * (1.0 - m);
+        // the sheet's color: a shade of paper for its band of brightness, tinted by the photo
+        // (the dark bands are lifted a little, as paper is never black)
+        float level = 0.25 + 0.75 * k / n1;
+        vec3 plain = paper.rgb * level;
+        vec3 tinted = clamp(level + 1.25 * (src.rgb - luma(src)), 0.0, 1.0);
+        vec3 sheet = mix(plain, tinted, 0.9 * clamp(colorful, 0.0, 1.0));
+        sheet *= 0.975 + 0.05 * grain(q * aspect * 160.0 + k * 37.0);
+        color = mix(color, vec4(sheet, paper.a), m);
+      }
+    }
+  }
+  return mix(color, rest, toPhoto);
+}
+
+void main() {
+  gl_FragColor = transition(isf_FragNormCoord);
+}

@@ -3,22 +3,16 @@
         "Transition",
         "gl-transitions"
     ],
-    "CREDIT": "Sergey Kosarevsky",
-    "DESCRIPTION": "Swirl - License MIT (Automatically converted by @benoitlahoz 'isf-transitions').",
+    "CREDIT": "Sergey Kosarevsky - MIT",
+    "DESCRIPTION": "The image twists into a round swirl around the center that peaks mid-way, where the outgoing image dissolves into the incoming one, then untwists (Automatically converted by @benoitlahoz 'isf-transitions').",
     "INPUTS": [
         {
-            "DEFAULT": false,
-            "LABEL": "Flip",
-            "NAME": "flip",
-            "TYPE": "bool"
-        },
-        {
-            "DEFAULT": 0,
             "LABEL": "Progress",
-            "MAX": 1,
-            "MIN": 0,
             "NAME": "progress",
-            "TYPE": "float"
+            "TYPE": "float",
+            "DEFAULT": 0,
+            "MIN": 0,
+            "MAX": 1
         },
         {
             "LABEL": "From",
@@ -29,61 +23,97 @@
             "LABEL": "To",
             "NAME": "endImage",
             "TYPE": "image"
+        },
+        {
+            "LABEL": "strength",
+            "NAME": "strength",
+            "TYPE": "float",
+            "DEFAULT": 1,
+            "MIN": -3,
+            "MAX": 3
+        },
+        {
+            "LABEL": "radius",
+            "NAME": "radius",
+            "TYPE": "float",
+            "DEFAULT": 0.9,
+            "MIN": 0.1,
+            "MAX": 2
+        },
+        {
+            "LABEL": "center",
+            "NAME": "center",
+            "TYPE": "point2D",
+            "DEFAULT": [0.5, 0.5],
+            "MIN": [-2, -2],
+            "MAX": [2, 2]
         }
     ],
     "ISFVSN": "2"
 }
 */
+
 float ratio = RENDERSIZE.x / RENDERSIZE.y;
 
 vec4 getFromColor(vec2 uv) {
-  if (flip == true) {
-    return IMG_NORM_PIXEL(startImage, vec2(uv.x, 1. - uv.y));
-  } else {
-    return IMG_NORM_PIXEL(startImage, uv);
-  }
+  return IMG_NORM_PIXEL(startImage, uv);
 }
 
 vec4 getToColor(vec2 uv) {
   return IMG_NORM_PIXEL(endImage, uv);
 }
 
-// License: MIT
-// Author: Sergey Kosarevsky
 // ( http://www.linderdaum.com )
 // ported by gre from https://gist.github.com/corporateshark/cacfedb8cca0f5ce3f7c
 
-vec4 transition(vec2 UV)
-{
-	float Radius = 1.0;
+// Center of the swirl
 
-	float T = progress;
+const float PI = 3.141592653589793;
+const float TAU = 6.283185307179586;
+const float ZOOM = 0.12;
+// spread of the motion blur, as a fraction of the swirl's speed
+const float BLUR = 0.05;
+const int TAPS = 12;
 
-	UV -= vec2( 0.5, 0.5 );
+// fold the coordinates back into the frame, so the image stays filled without smearing its border
+vec2 mirrored(vec2 v) {
+  vec2 m = mod(v, 2.0);
+  return mix(m, 2.0 - m, step(1.0, m));
+}
 
-	float Dist = length(UV);
+vec4 transition(vec2 uv) {
+  // the swirl eases in and out, and is exactly 0 at both ends
+  float s = sin(PI * progress);
+  float amount = s * s;
+  // its speed, used for the motion blur, also 0 at both ends
+  float speed = PI * sin(TAU * progress);
+  float reveal = smoothstep(0.3, 0.7, progress);
 
-	if ( Dist < Radius )
-	{
-		float Percent = (Radius - Dist) / Radius;
-		float A = ( T <= 0.5 ) ? mix( 0.0, 1.0, T/0.5 ) : mix( 1.0, 0.0, (T-0.5)/0.5 );
-		float Theta = Percent * Percent * A * 8.0 * 3.14159;
-		float S = sin( Theta );
-		float C = cos( Theta );
-		UV = vec2( dot(UV, vec2(C, -S)), dot(UV, vec2(S, C)) );
-	}
-	UV += vec2( 0.5, 0.5 );
+  vec2 aspect = vec2(ratio, 1.0);
+  vec2 d = (uv - center) * aspect;
+  float x = clamp(length(d) / max(radius, 1e-3), 0.0, 1.0);
+  float falloff = (1.0 - x) * (1.0 - x);
+  float twist = strength * TAU * falloff;
+  float angle = twist * amount;
+  // capped so the blur taps never spread apart into visible streaks
+  float spread = clamp(twist * speed * BLUR, -1.2, 1.2);
+  d *= 1.0 - ZOOM * amount * falloff;
 
-	vec4 C0 = getFromColor(UV);
-	vec4 C1 = getToColor(UV);
-
-	return mix( C0, C1, T );
+  vec4 col = vec4(0.0);
+  float total = 0.0;
+  for (int i = 0; i < TAPS; i++) {
+    float k = float(i) / float(TAPS - 1) - 0.5;
+    float w = 1.0 - abs(k);
+    float a = angle + spread * k;
+    float c = cos(a);
+    float sn = sin(a);
+    vec2 q = mirrored(center + vec2(c * d.x - sn * d.y, sn * d.x + c * d.y) / aspect);
+    col += mix(getFromColor(q), getToColor(q), reveal) * w;
+    total += w;
+  }
+  return col / total;
 }
 
 void main() {
-	if (flip == true) {
-    gl_FragColor = transition(vec2(isf_FragNormCoord.x, 1. - isf_FragNormCoord.y));
-  } else {
-    gl_FragColor = transition(isf_FragNormCoord);
-  }
+  gl_FragColor = transition(isf_FragNormCoord);
 }

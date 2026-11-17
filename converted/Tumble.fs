@@ -1,0 +1,171 @@
+/*{
+    "CATEGORIES": [
+        "Transition",
+        "gl-transitions"
+    ],
+    "CREDIT": "gre - MIT",
+    "DESCRIPTION": "The outgoing image is thrown away like a rigid card, tumbling end over end with a slight spin as it flies off into the distance in perspective, its darker back showing on every flip and its soft shadow shrinking on the incoming image behind it (Automatically converted by @benoitlahoz 'isf-transitions').",
+    "INPUTS": [
+        {
+            "LABEL": "Progress",
+            "NAME": "progress",
+            "TYPE": "float",
+            "DEFAULT": 0,
+            "MIN": 0,
+            "MAX": 1
+        },
+        {
+            "LABEL": "From",
+            "NAME": "startImage",
+            "TYPE": "image"
+        },
+        {
+            "LABEL": "To",
+            "NAME": "endImage",
+            "TYPE": "image"
+        },
+        {
+            "LABEL": "flips",
+            "NAME": "flips",
+            "TYPE": "float",
+            "DEFAULT": 2,
+            "MIN": -4,
+            "MAX": 4
+        },
+        {
+            "LABEL": "spin",
+            "NAME": "spin",
+            "TYPE": "float",
+            "DEFAULT": 0.15,
+            "MIN": -1,
+            "MAX": 1
+        },
+        {
+            "LABEL": "direction",
+            "NAME": "direction",
+            "TYPE": "point2D",
+            "DEFAULT": [0, 0.3],
+            "MIN": [-1.2, -1.2],
+            "MAX": [1.2, 1.2]
+        },
+        {
+            "LABEL": "perspective",
+            "NAME": "perspective",
+            "TYPE": "float",
+            "DEFAULT": 0.6,
+            "MIN": 0.1,
+            "MAX": 1
+        },
+        {
+            "LABEL": "shading",
+            "NAME": "shading",
+            "TYPE": "float",
+            "DEFAULT": 0.7,
+            "MIN": 0,
+            "MAX": 1
+        }
+    ],
+    "ISFVSN": "2"
+}
+*/
+
+float ratio = RENDERSIZE.x / RENDERSIZE.y;
+
+vec4 getFromColor(vec2 uv) {
+  return IMG_NORM_PIXEL(startImage, uv);
+}
+
+vec4 getToColor(vec2 uv) {
+  return IMG_NORM_PIXEL(endImage, uv);
+}
+
+const float PI = 3.141592653589793;
+const float EDGE = 0.0015;
+// direction toward the light: above, to the right, in front
+const vec3 LIGHT = vec3(0.348, 0.696, -0.628);
+
+vec3 roll(vec3 v, float c, float s) {
+  return vec3(c * v.x - s * v.y, s * v.x + c * v.y, v.z);
+}
+
+float cardDistance(vec2 q) {
+  vec2 e = abs(q) - vec2(0.5 * ratio, 0.5);
+  return max(e.x, e.y);
+}
+
+// casts the ray d from the eye onto the card's plane, rel being the card's center from the eye:
+// (the point hit in the card's axes, the distance along d), or a negative distance when it misses
+vec3 castOnCard(vec3 d, vec3 rel, vec3 U, vec3 V, vec3 N) {
+  float dn = dot(d, N);
+  if (abs(dn) < 1e-6) return vec3(0.0, 0.0, -1.0);
+  float k = dot(rel, N) / dn;
+  vec3 h = k * d - rel;
+  return vec3(dot(h, U), dot(h, V), k);
+}
+
+vec2 cardUv(vec2 q) {
+  return clamp(vec2(q.x / ratio, q.y) + 0.5, 0.0, 1.0);
+}
+
+vec4 transition(vec2 uv) {
+  float t = clamp(progress / 0.95, 0.0, 1.0);
+  float size = exp(-2.8 * t * t * (0.4 + 0.6 * t));
+  float away = 1.0 - size;
+  float turn = t * t * (3.0 - 2.0 * t);
+  float a = 2.0 * PI * flips * turn;
+  float r = 2.0 * PI * spin * turn;
+  float cr = cos(r), sr = sin(r);
+  // end over end around its horizontal axis, then around the line of sight
+  vec3 U = roll(vec3(1.0, 0.0, 0.0), cr, sr);
+  vec3 V = roll(vec3(0.0, cos(a), sin(a)), cr, sr);
+  vec3 N = roll(vec3(0.0, -sin(a), cos(a)), cr, sr);
+
+  // the camera, at dist in front of the plane z = 0, sees the frame at rest on it
+  float dist = 1.0 / clamp(perspective, 0.1, 1.0);
+  vec2 seen = direction * away + vec2(0.0, 0.12 * t * (1.0 - t));
+  vec3 rel = vec3(seen / size, dist / size);
+  float fade = 1.0 - smoothstep(0.8, 1.0, t);
+  float shadowAmount = 0.6 * shading * sqrt(size) * fade;
+
+  vec2 p = vec2((uv.x - 0.5) * ratio, uv.y - 0.5);
+  vec4 color = getToColor(uv);
+
+  if (shadowAmount > 0.0) {
+    vec3 ds = vec3(p - vec2(-0.05, -0.08) * min(4.0 * t, 1.0) * size, dist);
+    vec3 hs = castOnCard(ds, rel, U, V, N);
+    if (hs.z > 0.0) {
+      float blur = 0.005 + 0.06 * min(3.0 * t, 1.0) * size;
+      float sd = cardDistance(hs.xy) * max(abs(dot(ds, N)) / length(ds), 0.05) / hs.z;
+      float sh = (1.0 - smoothstep(-blur, blur, sd)) * getFromColor(cardUv(hs.xy)).a;
+      color.rgb *= 1.0 - shadowAmount * sh;
+    }
+  }
+
+  vec3 d = vec3(p, dist);
+  vec3 hit = castOnCard(d, rel, U, V, N);
+  if (hit.z <= 0.0) return color;
+  float dn = dot(d, N);
+  // anti-aliased edges: a screen pixel covers more of the card when it is far or seen at a grazing angle
+  float grazing = max(abs(dn) / length(d), 0.05);
+  float e = EDGE * min(20.0 * t, 1.0) * hit.z / grazing;
+  float m = clamp(0.5 - cardDistance(hit.xy) / max(e, 1e-6), 0.0, 1.0) * fade;
+  if (m <= 0.0) return color;
+
+  vec4 card = getFromColor(cardUv(hit.xy));
+  // the side facing the camera: the front, or the back which shows the image through, darker and duller
+  bool front = dn > 0.0;
+  vec3 facing = front ? -N : N;
+  float lit = min((0.35 + 0.65 * max(dot(facing, LIGHT), 0.0)) / (0.35 + 0.65 * -LIGHT.z), 1.0);
+  float shade = mix(1.0, lit * (front ? 1.0 : 0.55), shading);
+  if (!front) card.rgb = mix(card.rgb, vec3(dot(card.rgb, vec3(0.299, 0.587, 0.114))), 0.4 * shading);
+  float glint = pow(max(dot(facing, normalize(LIGHT - normalize(d))), 0.0), 60.0);
+  card.rgb = card.rgb * shade + 0.35 * shading * glint * smoothstep(0.0, 0.2, t);
+  if (m >= 1.0) return card;
+  // blend premultiplied, so that a transparent layer gives no color to the other one
+  vec4 mixed = mix(vec4(color.rgb * color.a, color.a), vec4(card.rgb * card.a, card.a), m);
+  return mixed.a > 0.0 ? vec4(mixed.rgb / mixed.a, mixed.a) : vec4(0.0);
+}
+
+void main() {
+  gl_FragColor = transition(isf_FragNormCoord);
+}

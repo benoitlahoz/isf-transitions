@@ -3,22 +3,16 @@
         "Transition",
         "gl-transitions"
     ],
-    "CREDIT": "gre",
-    "DESCRIPTION": "doorway - License MIT (Automatically converted by @benoitlahoz 'isf-transitions').",
+    "CREDIT": "gre - MIT",
+    "DESCRIPTION": "The outgoing image opens like double doors swinging toward the viewer, as the incoming one comes forward from the dark room behind, with a floor reflection (Automatically converted by @benoitlahoz 'isf-transitions').",
     "INPUTS": [
         {
-            "DEFAULT": false,
-            "LABEL": "Flip",
-            "NAME": "flip",
-            "TYPE": "bool"
-        },
-        {
-            "DEFAULT": 0,
             "LABEL": "Progress",
-            "MAX": 1,
-            "MIN": 0,
             "NAME": "progress",
-            "TYPE": "float"
+            "TYPE": "float",
+            "DEFAULT": 0,
+            "MIN": 0,
+            "MAX": 1
         },
         {
             "LABEL": "From",
@@ -33,97 +27,112 @@
         {
             "LABEL": "reflection",
             "NAME": "reflection",
-            "DEFAULT": 0.4,
             "TYPE": "float",
-            "MAX": 1000,
-            "MIN": 0
+            "DEFAULT": 0.4,
+            "MIN": 0,
+            "MAX": 1
         },
         {
             "LABEL": "perspective",
             "NAME": "perspective",
-            "DEFAULT": 0.4,
             "TYPE": "float",
-            "MAX": 1000,
-            "MIN": 0
+            "DEFAULT": 0.4,
+            "MIN": 0,
+            "MAX": 1
         },
         {
             "LABEL": "depth",
             "NAME": "depth",
-            "DEFAULT": 3,
             "TYPE": "float",
-            "MAX": 1000,
-            "MIN": 0
+            "DEFAULT": 3,
+            "MIN": 1,
+            "MAX": 10
         }
     ],
     "ISFVSN": "2"
 }
 */
+
 float ratio = RENDERSIZE.x / RENDERSIZE.y;
 
 vec4 getFromColor(vec2 uv) {
-  if (flip == true) {
-    return IMG_NORM_PIXEL(startImage, vec2(uv.x, 1. - uv.y));
-  } else {
-    return IMG_NORM_PIXEL(startImage, uv);
-  }
+  return IMG_NORM_PIXEL(startImage, uv);
 }
 
 vec4 getToColor(vec2 uv) {
   return IMG_NORM_PIXEL(endImage, uv);
 }
 
-// author: gre
-// License: MIT 
+const float PI = 3.141592653589793;
 
-const vec4 black = vec4(0.0, 0.0, 0.0, 1.0);
-const vec2 boundMin = vec2(0.0, 0.0);
-const vec2 boundMax = vec2(1.0, 1.0);
-
-bool inBounds (vec2 p) {
-  return all(lessThan(boundMin, p)) && all(lessThan(p, boundMax));
+// cast the view ray of screen point x (aspect units, the frame is 0..w) onto a leaf of
+// width w/2 hinged on the left edge and turned toward the viewer by angle a.
+// The eye is at (w/2, 0.5, -eye) and the frame at z = 0; returns (t, distance along the leaf)
+// where t scales the ray so that t = 1 is the frame plane
+vec2 leafHit (float x, float w, float eye, float a) {
+  float c = cos(a), s = sin(a);
+  float t = (eye * c - 0.5 * w * s) / (s * (x - 0.5 * w) + eye * c);
+  vec2 hit = vec2(0.5 * w + t * (x - 0.5 * w), eye * (t - 1.0));
+  return vec2(t, hit.x * c - hit.y * s);
 }
 
-vec2 project (vec2 p) {
-  return p * vec2(1.0, -1.2) + vec2(0.0, -0.02);
+float project (vec2 p, float w, float eye) {
+  return 0.5 * w + (p.x - 0.5 * w) * eye / (eye + p.y);
 }
 
-vec4 bgColor (vec2 p, vec2 pto) {
-  vec4 c = black;
-  pto = project(pto);
-  if (inBounds(pto)) {
-    c += mix(black, getToColor(pto), reflection * mix(1.0, 0.0, pto.y));
-  }
-  return c;
+float easeInOut (float t) {
+  return t < 0.5 ? 4.0 * t * t * t : 1.0 - 4.0 * (1.0 - t) * (1.0 - t) * (1.0 - t);
 }
 
+vec4 room (vec2 uv, float x, float edgeL, float edgeR, float close, float dolly) {
+  float size = mix(max(depth, 1.0), 1.0, dolly);
+  vec2 p = (uv - 0.5) * size + 0.5;
+  // soft border while it is far, exactly sharp once it fills the frame
+  float soft = 0.004 * (size - 1.0) + 1e-6;
+  vec2 m = smoothstep(-soft, soft, p) * smoothstep(-soft, soft, 1.0 - p);
+  vec4 c = getToColor(clamp(p, 0.0, 1.0)) * (m.x * m.y);
+  if (p.y < 0.0) {
+    vec2 r = vec2(p.x, -1.2 * p.y - 0.02);
+    float f = reflection * (1.0 - r.y) * m.x * smoothstep(0.0, 0.01, r.y);
+    c += getToColor(clamp(r, 0.0, 1.0)) * f * (1.0 - m.y);
+  }
+  float wl = 0.03 + 0.12 * close;
+  float shadow = (1.0 - smoothstep(0.0, wl, x - edgeL)) + (1.0 - smoothstep(0.0, wl, edgeR - x));
+  float light = (1.0 + 0.6 * close * close) * (1.0 - 0.7 * close * min(shadow, 1.0));
+  return vec4(min(c.rgb * light, vec3(c.a)), c.a);
+}
 
-vec4 transition (vec2 p) {
-  vec2 pfr = vec2(-1.), pto = vec2(-1.);
-  float middleSlit = 2.0 * abs(p.x-0.5) - progress;
-  if (middleSlit > 0.0) {
-    pfr = p + (p.x > 0.5 ? -1.0 : 1.0) * vec2(0.5*progress, 0.0);
-    float d = 1.0/(1.0+perspective*progress*(1.0-middleSlit));
-    pfr.y -= d/2.;
-    pfr.y *= d;
-    pfr.y += d/2.;
-  }
-  float size = mix(1.0, depth, 1.-progress);
-  pto = (p + vec2(-0.5, -0.5)) * vec2(size, size) + vec2(0.5, 0.5);
-  if (inBounds(pfr)) {
-    return getFromColor(pfr);
-  }
-  else if (inBounds(pto)) {
-    return getToColor(pto);
-  }
-  else {
-    return bgColor(p, pto);
-  }
+vec4 transition (vec2 uv) {
+  float w = ratio;
+  float x = uv.x * w;
+  // camera distance: the leaves always stay in front of it
+  float eye = max(w, 1.0) * (0.5 + 0.2 / max(perspective, 0.01));
+  float swing = progress * progress * (3.0 - 2.0 * progress);
+  float a = min(atan(2.0 * eye / w) + 0.1, 0.5 * PI) * swing;
+  float dolly = mix(easeInOut(progress), progress, 0.3);
+  float hw = 0.5 * w;
+  vec2 front = hw * vec2(cos(a), -sin(a));
+  float thick = 0.02 * w * (1.0 - smoothstep(0.8, 1.0, swing));
+  float edgeL = project(front, w, eye);
+  float backL = project(front + thick * vec2(sin(a), cos(a)), w, eye);
+  float close = 1.0 - swing;
+  vec4 back = room(uv, x, backL, w - backL, close, dolly);
+  // the leaf on this side of the frame (each one stays in its own half)
+  bool left = x < hw;
+  float lx = left ? x : w - x;
+  vec2 hit = leafHit(lx, w, eye, a);
+  float s = clamp(hit.y, 0.0, hw);
+  float v = 0.5 + (uv.y - 0.5) * hit.x;
+  vec4 leaf = getFromColor(clamp(vec2(left ? s / w : 1.0 - s / w, v), 0.0, 1.0));
+  leaf.rgb *= 1.0 - 0.5 * (1.0 - cos(a)) - 0.25 * sin(a) * (s / hw);
+  vec4 side = getFromColor(clamp(vec2(left ? 0.499 : 0.501, v), 0.0, 1.0));
+  side.rgb = min(side.rgb * 1.5, vec3(side.a));
+  // sharp at both ends, so that nothing of the doors is left at the start and the end
+  float aa = 0.003 * min(1.0, 20.0 * min(a, close)) + 1e-6;
+  vec4 c = mix(back, side, smoothstep(-aa, aa, backL - lx));
+  return mix(c, leaf, smoothstep(-aa, aa, edgeL - lx));
 }
 
 void main() {
-	if (flip == true) {
-    gl_FragColor = transition(vec2(isf_FragNormCoord.x, 1. - isf_FragNormCoord.y));
-  } else {
-    gl_FragColor = transition(isf_FragNormCoord);
-  }
+  gl_FragColor = transition(isf_FragNormCoord);
 }

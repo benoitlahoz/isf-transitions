@@ -1,0 +1,230 @@
+/*{
+    "CATEGORIES": [
+        "Transition",
+        "gl-transitions"
+    ],
+    "CREDIT": "TimDonselaar - MIT",
+    "DESCRIPTION": "The image splits into a grid of cards that lift apart and turn over in perspective one after another, each one showing its part of the incoming image on its back (Automatically converted by @benoitlahoz 'isf-transitions').",
+    "INPUTS": [
+        {
+            "LABEL": "Progress",
+            "NAME": "progress",
+            "TYPE": "float",
+            "DEFAULT": 0,
+            "MIN": 0,
+            "MAX": 1
+        },
+        {
+            "LABEL": "From",
+            "NAME": "startImage",
+            "TYPE": "image"
+        },
+        {
+            "LABEL": "To",
+            "NAME": "endImage",
+            "TYPE": "image"
+        },
+        {
+            "LABEL": "size",
+            "NAME": "size_isf",
+            "TYPE": "point2D",
+            "DEFAULT": [4, 4],
+            "MIN": [0, 0],
+            "MAX": [10, 10]
+        },
+        {
+            "LABEL": "pause",
+            "NAME": "pause",
+            "TYPE": "float",
+            "DEFAULT": 0.1,
+            "MIN": 0,
+            "MAX": 0.4
+        },
+        {
+            "LABEL": "dividerWidth",
+            "NAME": "dividerWidth",
+            "TYPE": "float",
+            "DEFAULT": 0.05,
+            "MIN": 0,
+            "MAX": 0.4
+        },
+        {
+            "LABEL": "bgcolor",
+            "NAME": "bgcolor",
+            "TYPE": "color",
+            "DEFAULT": [0, 0, 0, 1],
+            "MIN": [0, 0, 0, 0],
+            "MAX": [1, 1, 1, 1]
+        },
+        {
+            "LABEL": "randomness",
+            "NAME": "randomness",
+            "TYPE": "float",
+            "DEFAULT": 0.1,
+            "MIN": 0,
+            "MAX": 1
+        }
+    ],
+    "ISFVSN": "2"
+}
+*/
+
+float ratio = RENDERSIZE.x / RENDERSIZE.y;
+
+vec4 getFromColor(vec2 uv) {
+  return IMG_NORM_PIXEL(startImage, uv);
+}
+
+vec4 getToColor(vec2 uv) {
+  return IMG_NORM_PIXEL(endImage, uv);
+}
+
+#define size ivec2(size_isf)
+
+// ported by gre from https://gist.github.com/TimDonselaar/9bcd1c4b5934ba60087bdb55c2ea92e5
+
+
+const float PI = 3.141592653589793;
+const float EDGE = 0.0012;
+// distance of the eye from each tile, in tile sizes
+const float EYE = 2.2;
+// part of the flips during which the last tile waits for its turn
+const float STAGGER = 0.55;
+// light direction (x, y over z): from the upper left, in front of the frame
+const vec2 LIGHT = vec2(-0.45, 0.3);
+
+float hash12(vec2 v) {
+  vec3 v3 = fract(vec3(v.xyx) * 0.1031);
+  v3 += dot(v3, v3.yzx + 33.33);
+  return fract((v3.x + v3.y) * v3.z);
+}
+
+float easeInOut(float t) {
+  return mix(t, t * t * (3.0 - 2.0 * t), 0.7);
+}
+
+float pausePart() {
+  return clamp(pause, 0.05, 0.4);
+}
+
+// the turn of a tile, 0 showing the outgoing image to 1 showing the incoming one,
+// at q the progress of the flips and with stagger the delay of the last tile
+float flipTime(vec2 cell, vec2 grid, float q, float stagger) {
+  float wave = (cell.x + (grid.y - 1.0 - cell.y)) / max(grid.x + grid.y - 2.0, 1.0);
+  float order = mix(wave, hash12(cell + 7.31), clamp(randomness, 0.0, 1.0));
+  return easeInOut(clamp((q - order * stagger) / (1.0 - stagger), 0.0, 1.0));
+}
+
+float gapAmount() {
+  float pp = pausePart();
+  return smoothstep(0.0, pp, progress) * (1.0 - smoothstep(1.0 - pp, 1.0, progress));
+}
+
+float aa(float d, float e) {
+  return clamp(d / max(2.0 * e, 1e-6) + 0.5, 0.0, 1.0);
+}
+
+float boxShadow(vec2 p, vec2 halfSize, float blur) {
+  vec2 d = abs(p) - halfSize;
+  float dist = length(max(d, 0.0)) + min(max(d.x, d.y), 0.0);
+  return 1.0 - smoothstep(-blur, blur, dist);
+}
+
+vec4 transition(vec2 uv) {
+  vec2 grid = max(vec2(size), 1.0);
+  vec2 frame = vec2(ratio, 1.0);
+  vec2 tileSize = frame / grid;
+  vec2 cell = clamp(floor(uv * grid), vec2(0.0), grid - 1.0);
+  vec2 pos = uv * frame;
+  float gapOpen = gapAmount();
+  float minSide = min(tileSize.x, tileSize.y);
+  float gap = clamp(dividerWidth, 0.0, 0.4) * minSide * gapOpen;
+  vec2 halfTile = 0.5 * tileSize - gap;
+  float eye = EYE * max(tileSize.x, tileSize.y);
+  // the flips start while the gaps finish opening, and end while they start closing
+  float pp = 0.6 * pausePart();
+  float q = clamp((progress - pp) / (1.0 - 2.0 * pp), 0.0, 1.0);
+  // a single tile takes all the time to turn
+  float stagger = grid.x * grid.y > 1.5 ? STAGGER : 0.0;
+
+  vec4 c1 = vec4(0.0);
+  vec4 c2 = vec4(0.0);
+  float m1 = 0.0;
+  float m2 = 0.0;
+  float z1 = 1e9;
+  float z2 = 1e9;
+  bool rest1 = true;
+  bool rest2 = true;
+  float shadowBg = 0.0;
+  float shadowFlip = 0.0;
+
+  for (int j = -1; j <= 1; j++) {
+    for (int i = -1; i <= 1; i++) {
+      vec2 nc = cell + vec2(float(i), float(j));
+      if (nc.x < 0.0 || nc.y < 0.0 || nc.x > grid.x - 1.0 || nc.y > grid.y - 1.0) continue;
+      float t = flipTime(nc, grid, q, stagger);
+      float a = PI * t;
+      float ca = cos(a);
+      float sa = sin(a);
+      bool rest = t <= 0.0 || t >= 1.0;
+      if (rest) {
+        ca = t <= 0.0 ? 1.0 : -1.0;
+        sa = 0.0;
+      }
+      vec2 center = (nc + 0.5) * tileSize;
+      vec2 q = pos - center;
+
+      float lift = 0.05 * gapOpen * minSide + 0.35 * halfTile.x * sa;
+      vec2 shOffset = -LIGHT * lift;
+      vec2 shHalf = vec2(halfTile.x * abs(ca) + 0.5 * lift, halfTile.y);
+      float sh = boxShadow(q - shOffset, shHalf, 0.01 * minSide + 0.5 * lift);
+      shadowBg = 1.0 - (1.0 - shadowBg) * (1.0 - 0.45 * gapOpen * sh);
+      shadowFlip = max(shadowFlip, 0.45 * sa * sa * sh);
+
+      // ray from the eye in front of the tile's center to the tile turned around its vertical axis: local x (ca, 0, -sa), normal (sa, 0, ca)
+      float den = eye * ca - q.x * sa;
+      if (abs(den) < 1e-6) continue;
+      float s = eye * ca / den;
+      if (s <= 0.0) continue;
+      vec3 hit = vec3(s * q.x, s * q.y, eye * (1.0 - s));
+      float u = hit.x * ca - hit.z * sa;
+      float xa = halfTile.x * ca * eye / (eye + halfTile.x * sa);
+      float xb = -halfTile.x * ca * eye / (eye - halfTile.x * sa);
+      float dx = min(q.x - min(xa, xb), max(xa, xb) - q.x);
+      float dy = (halfTile.y - abs(hit.y)) / s;
+      // soft edges, except where the tiles touch each other
+      float e = max(min(EDGE, gap), EDGE * min(8.0 * sa, 1.0));
+      float m = aa(min(dx, dy), e);
+      if (m <= 0.0) continue;
+
+      bool front = ca > 0.0;
+      vec2 src = (center + vec2(front ? u : -u, hit.y)) / frame;
+      vec4 col = front ? getFromColor(src) : getToColor(src);
+      if (!rest) {
+        float nx = front ? sa : -sa;
+        float lit = abs(ca) + nx * LIGHT.x;
+        col.rgb *= mix(0.35, 1.0, clamp(lit, 0.0, 1.0)) + 0.25 * max(lit - 1.0, 0.0);
+        col.rgb += 0.12 * sa * (1.0 - smoothstep(0.0, 3.0 * EDGE, min(dx, dy)));
+      }
+
+      if (s < z1) {
+        c2 = c1; m2 = m1; z2 = z1; rest2 = rest1;
+        c1 = col; m1 = m; z1 = s; rest1 = rest;
+      } else if (s < z2) {
+        c2 = col; m2 = m; z2 = s; rest2 = rest;
+      }
+    }
+  }
+
+  vec4 color = bgcolor;
+  color.rgb *= 1.0 - clamp(max(shadowBg, shadowFlip), 0.0, 1.0);
+  if (rest2) c2.rgb *= 1.0 - shadowFlip;
+  if (rest1) c1.rgb *= 1.0 - shadowFlip;
+  color = mix(color, c2, m2);
+  color = mix(color, c1, m1);
+  return color;
+}
+
+void main() {
+  gl_FragColor = transition(isf_FragNormCoord);
+}

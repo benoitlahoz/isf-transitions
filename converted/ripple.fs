@@ -3,22 +3,16 @@
         "Transition",
         "gl-transitions"
     ],
-    "CREDIT": "gre",
-    "DESCRIPTION": "ripple - License MIT (Automatically converted by @benoitlahoz 'isf-transitions').",
+    "CREDIT": "gre - MIT",
+    "DESCRIPTION": "Ripples spread from the center while crossfading (Automatically converted by @benoitlahoz 'isf-transitions').",
     "INPUTS": [
         {
-            "DEFAULT": false,
-            "LABEL": "Flip",
-            "NAME": "flip",
-            "TYPE": "bool"
-        },
-        {
-            "DEFAULT": 0,
             "LABEL": "Progress",
-            "MAX": 1,
-            "MIN": 0,
             "NAME": "progress",
-            "TYPE": "float"
+            "TYPE": "float",
+            "DEFAULT": 0,
+            "MIN": 0,
+            "MAX": 1
         },
         {
             "LABEL": "From",
@@ -33,44 +27,38 @@
         {
             "LABEL": "amplitude",
             "NAME": "amplitude",
-            "DEFAULT": 100.0,
             "TYPE": "float",
-            "MAX": 1000,
-            "MIN": 0
+            "DEFAULT": 100,
+            "MIN": 0,
+            "MAX": 400
         },
         {
             "LABEL": "speed",
             "NAME": "speed",
-            "DEFAULT": 50.0,
             "TYPE": "float",
-            "MAX": 1000,
-            "MIN": 0
+            "DEFAULT": 50,
+            "MIN": 0,
+            "MAX": 200
         }
     ],
     "ISFVSN": "2"
 }
 */
+
 float ratio = RENDERSIZE.x / RENDERSIZE.y;
 
 vec4 getFromColor(vec2 uv) {
-  if (flip == true) {
-    return IMG_NORM_PIXEL(startImage, vec2(uv.x, 1. - uv.y));
-  } else {
-    return IMG_NORM_PIXEL(startImage, uv);
-  }
+  return IMG_NORM_PIXEL(startImage, uv);
 }
 
 vec4 getToColor(vec2 uv) {
   return IMG_NORM_PIXEL(endImage, uv);
 }
 
-// Author: gre
-// License: MIT
-
 vec4 transition (vec2 uv) {
   vec2 dir = uv - vec2(.5);
   float dist = length(dir);
-  vec2 offset = dir * (sin(progress * dist * amplitude - progress * speed) + .5) / 30.;
+  vec2 offset = dir * (sin(progress * dist * amplitude - progress * speed) + .5) / 30. * progress;
   return mix(
     getFromColor(uv + offset),
     getToColor(uv),
@@ -79,9 +67,5 @@ vec4 transition (vec2 uv) {
 }
 
 void main() {
-	if (flip == true) {
-    gl_FragColor = transition(vec2(isf_FragNormCoord.x, 1. - isf_FragNormCoord.y));
-  } else {
-    gl_FragColor = transition(isf_FragNormCoord);
-  }
+  gl_FragColor = transition(isf_FragNormCoord);
 }
