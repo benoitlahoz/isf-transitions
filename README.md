@@ -226,8 +226,6 @@ If you want to contribute with a 'native ISF' transition, please put it in the `
   </a>
 </p>
 
-<br><br>
-
 [ISF Studio](https://isf-studio.app) is a desktop application for ISF, made by the author of this package.
 
 Write GLSL with a live preview or connect nodes in a pipeline, keep your whole library of shaders in order, and export ISF for VDMX, Resolume or Millumin, OpenFX plug-ins (e.g. DaVinci Resolve), videos (ProRes, MP4) and images.
