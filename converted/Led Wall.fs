@@ -1,0 +1,191 @@
+/*{
+    "CATEGORIES": [
+        "Transition",
+        "gl-transitions"
+    ],
+    "CREDIT": "gre - MIT",
+    "DESCRIPTION": "The picture zooms into a giant LED screen of round glowing diodes on a dark panel; a refresh wave sweeps across it, each diode flicking with a bright pop as it switches to the incoming image, then the diodes melt back into the plain picture (Automatically converted by @benoitlahoz 'isf-transitions').",
+    "INPUTS": [
+        {
+            "LABEL": "Progress",
+            "NAME": "progress",
+            "TYPE": "float",
+            "DEFAULT": 0,
+            "MIN": 0,
+            "MAX": 1
+        },
+        {
+            "LABEL": "From",
+            "NAME": "startImage",
+            "TYPE": "image"
+        },
+        {
+            "LABEL": "To",
+            "NAME": "endImage",
+            "TYPE": "image"
+        },
+        {
+            "LABEL": "cells",
+            "NAME": "cells",
+            "TYPE": "float",
+            "DEFAULT": 24,
+            "MIN": 6,
+            "MAX": 80
+        },
+        {
+            "LABEL": "glow",
+            "NAME": "glow",
+            "TYPE": "float",
+            "DEFAULT": 0.6,
+            "MIN": 0,
+            "MAX": 1
+        },
+        {
+            "LABEL": "flash",
+            "NAME": "flash",
+            "TYPE": "float",
+            "DEFAULT": 0.7,
+            "MIN": 0,
+            "MAX": 1
+        },
+        {
+            "LABEL": "zoom",
+            "NAME": "zoom",
+            "TYPE": "float",
+            "DEFAULT": 0.15,
+            "MIN": 0,
+            "MAX": 0.5
+        },
+        {
+            "LABEL": "triads",
+            "NAME": "triads",
+            "TYPE": "bool",
+            "DEFAULT": false
+        },
+        {
+            "LABEL": "direction",
+            "NAME": "direction",
+            "TYPE": "point2D",
+            "DEFAULT": [1, 0],
+            "MIN": [-4, -4],
+            "MAX": [4, 4]
+        },
+        {
+            "LABEL": "panel",
+            "NAME": "panel",
+            "TYPE": "color",
+            "DEFAULT": [0.02, 0.02, 0.025, 1],
+            "MIN": [0, 0, 0, 0],
+            "MAX": [1, 1, 1, 1]
+        }
+    ],
+    "ISFVSN": "2"
+}
+*/
+
+float ratio = RENDERSIZE.x / RENDERSIZE.y;
+
+vec4 getFromColor(vec2 uv) {
+  return IMG_NORM_PIXEL(startImage, uv);
+}
+
+vec4 getToColor(vec2 uv) {
+  return IMG_NORM_PIXEL(endImage, uv);
+}
+
+const float RADIUS = 0.36;
+const float EDGE = 0.05;
+
+float hash12(vec2 p) {
+  vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+  p3 += dot(p3, p3.yzx + 33.33);
+  return fract((p3.x + p3.y) * p3.z);
+}
+
+vec2 mirrored(vec2 v) {
+  vec2 m = mod(v, 2.0);
+  return mix(m, 2.0 - m, step(1.0, m));
+}
+
+float disc(float d, float r) {
+  return 1.0 - smoothstep(r - EDGE, r + EDGE, d);
+}
+
+vec4 transition(vec2 uv) {
+  float led = smoothstep(0.0, 0.3, progress) * (1.0 - smoothstep(0.7, 1.0, progress));
+  float z = 1.0 + max(zoom, 0.0) * smoothstep(0.0, 0.45, progress) * (1.0 - smoothstep(0.55, 1.0, progress));
+  vec2 p = 0.5 + (uv - 0.5) / z;
+
+  vec2 aspect = vec2(ratio, 1.0);
+  vec2 toCells = aspect * max(cells, 1.0) / min(ratio, 1.0);
+  vec2 q = (p - 0.5) * toCells;
+  vec2 id = floor(q + 0.5);
+  vec2 local = q - id;
+  vec2 side = vec2(local.x < 0.0 ? -1.0 : 1.0, local.y < 0.0 ? -1.0 : 1.0);
+
+  vec2 dir = length(direction) > 1e-4 ? normalize(direction) : vec2(1.0, 0.0);
+  float extent = abs(dir.x) * ratio + abs(dir.y);
+
+  vec4 own = vec4(0.0);
+  float ownSwitch = 0.0;
+  vec4 halo = vec4(0.0);
+  float haloWeight = 0.0;
+  // this diode and the three nearest ones, whose glow reaches this point
+  for (int i = 0; i < 4; i++) {
+    if (i > 0 && glow * led <= 0.0) break;
+    vec2 o = vec2(mod(float(i), 2.0), floor(float(i) / 2.0)) * side;
+    vec2 c = id + o;
+    vec2 cuv = c / toCells + 0.5;
+    // where the diode is seen in the frame, so that the wave crosses the visible screen
+    float s = clamp(dot((cuv - 0.5) * z * aspect, dir) / extent + 0.5, 0.0, 1.0);
+    float when = 0.2 + 0.52 * s + 0.05 * (hash12(c + 71.0) - 0.5);
+    float sw = smoothstep(when - 0.012, when + 0.012, progress);
+    float x = (progress - when) / 0.018;
+    float pop = exp(-x * x) - 0.5 * exp(-(x + 1.6) * (x + 1.6));
+    vec2 suv = mirrored(cuv);
+    vec4 col = mix(getFromColor(suv), getToColor(suv), sw);
+    col.rgb = col.rgb * (1.0 + 1.4 * flash * pop) + 0.2 * flash * max(pop, 0.0);
+    if (i == 0) {
+      own = col;
+      ownSwitch = sw;
+    }
+    float d = length(local - o);
+    float w = 0.9 * glow * exp(-6.0 * max(d - RADIUS, 0.0)) * (1.0 + 0.8 * flash * max(pop, 0.0));
+    // the neighbors fade out where the next ones in the other direction take over, so the glow has no seam
+    if (o.x != 0.0) w *= smoothstep(0.0, 0.2, abs(local.x));
+    if (o.y != 0.0) w *= smoothstep(0.0, 0.2, abs(local.y));
+    halo += w * col;
+    haloWeight += w;
+  }
+
+  vec4 plain = mix(getFromColor(p), getToColor(p), ownSwitch);
+  float d = length(local);
+  // the diodes cover their whole cell with the plain picture when led = 0: the dark panel
+  // shows up first between them, then they light up with the color of their center
+  float r = mix(0.8, RADIUS, smoothstep(0.0, 0.6, led));
+  vec4 gap = vec4(panel.rgb, panel.a * own.a);
+  if (haloWeight > 0.0) {
+    gap = mix(gap, halo / haloWeight, clamp(haloWeight * led, 0.0, 1.0));
+  }
+  vec4 body = own;
+  if (triads) {
+    vec3 sub = vec3(
+      disc(length(local - vec2(0.0, 0.15)), 0.2),
+      disc(length(local - vec2(-0.13, -0.075)), 0.2),
+      disc(length(local - vec2(0.13, -0.075)), 0.2));
+    float m = max(sub.r, max(sub.g, sub.b));
+    body = vec4(gap.rgb * (1.0 - m) + own.rgb * 1.5 * sub, mix(gap.a, own.a, m));
+    r = max(r, 0.45);
+  } else {
+    float k = clamp(d / RADIUS, 0.0, 1.0);
+    body.rgb *= 0.8 + 0.45 * (1.0 - k * k);
+  }
+  float lit = smoothstep(0.0, 0.8, led);
+  body = mix(plain, body, lit * mix(1.0, lit, smoothstep(0.0, 0.7, d)));
+  vec4 color = mix(gap, body, disc(d, r));
+  return clamp(color, 0.0, 1.0);
+}
+
+void main() {
+  gl_FragColor = transition(isf_FragNormCoord);
+}

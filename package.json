@@ -1,14 +1,50 @@
 {
   "name": "isf-transitions",
-  "version": "0.0.2",
+  "version": "3.3.0",
   "description": "Famous gl-transitions converted to ISF (Interactive Shader Format).",
   "author": "Benoît LAHOZ <info@benoitlahoz.io>",
-  "license": "MIT",
+  "license": "MIT AND BSD-2-Clause AND BSD-3-Clause",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/benoitlahoz/isf-transitions.git"
+  },
   "type": "module",
-  "main": "index.mjs",
+  "main": "transitions.mjs",
+  "types": "transitions.d.ts",
+  "exports": {
+    ".": {
+      "types": "./transitions.d.ts",
+      "default": "./transitions.mjs"
+    },
+    "./catalog": {
+      "types": "./catalog.d.ts",
+      "default": "./catalog.mjs"
+    },
+    "./converted/*": "./converted/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "converted",
+    "transitions",
+    "transitions.mjs",
+    "transitions.d.ts",
+    "catalog.mjs",
+    "catalog.d.ts",
+    "install.mjs",
+    "LICENSE",
+    "THIRD_PARTY_LICENSES.md",
+    "!**/.private*",
+    "!**/.DS_Store"
+  ],
   "scripts": {
     "convert": "node index.mjs",
-    "copy": "node install.mjs"
+    "copy": "node install.mjs",
+    "test": "node --test *.test.mjs"
   },
-  "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"
+  "devDependencies": {
+    "@isf-studio/isf-renderer": "^1.0.1",
+    "esbuild": "^0.28.2",
+    "interactive-shader-format": "^2.8.1",
+    "isfjs": "^1.0.2"
+  }
 }

@@ -3,22 +3,16 @@
         "Transition",
         "gl-transitions"
     ],
-    "CREDIT": "paniq",
-    "DESCRIPTION": "morph - License MIT (Automatically converted by @benoitlahoz 'isf-transitions').",
+    "CREDIT": "paniq - MIT",
+    "DESCRIPTION": "A crossfade in which each image is displaced by the other's colors, like a morph (Automatically converted by @benoitlahoz 'isf-transitions').",
     "INPUTS": [
         {
-            "DEFAULT": false,
-            "LABEL": "Flip",
-            "NAME": "flip",
-            "TYPE": "bool"
-        },
-        {
-            "DEFAULT": 0,
             "LABEL": "Progress",
-            "MAX": 1,
-            "MIN": 0,
             "NAME": "progress",
-            "TYPE": "float"
+            "TYPE": "float",
+            "DEFAULT": 0,
+            "MIN": 0,
+            "MAX": 1
         },
         {
             "LABEL": "From",
@@ -33,31 +27,25 @@
         {
             "LABEL": "strength",
             "NAME": "strength",
-            "DEFAULT": 0.1,
             "TYPE": "float",
-            "MAX": 1000,
-            "MIN": 0
+            "DEFAULT": 0.1,
+            "MIN": 0,
+            "MAX": 1
         }
     ],
     "ISFVSN": "2"
 }
 */
+
 float ratio = RENDERSIZE.x / RENDERSIZE.y;
 
 vec4 getFromColor(vec2 uv) {
-  if (flip == true) {
-    return IMG_NORM_PIXEL(startImage, vec2(uv.x, 1. - uv.y));
-  } else {
-    return IMG_NORM_PIXEL(startImage, uv);
-  }
+  return IMG_NORM_PIXEL(startImage, uv);
 }
 
 vec4 getToColor(vec2 uv) {
   return IMG_NORM_PIXEL(endImage, uv);
 }
-
-// Author: paniq
-// License: MIT
 
 vec4 transition(vec2 p) {
   vec4 ca = getFromColor(p);
@@ -73,9 +61,5 @@ vec4 transition(vec2 p) {
 }
 
 void main() {
-	if (flip == true) {
-    gl_FragColor = transition(vec2(isf_FragNormCoord.x, 1. - isf_FragNormCoord.y));
-  } else {
-    gl_FragColor = transition(isf_FragNormCoord);
-  }
+  gl_FragColor = transition(isf_FragNormCoord);
 }

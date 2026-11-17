@@ -1,0 +1,117 @@
+/*{
+    "CATEGORIES": [
+        "Transition",
+        "gl-transitions"
+    ],
+    "CREDIT": "Boundless - MIT",
+    "DESCRIPTION": "The image folds into an animated kaleidoscope before revealing the incoming one (Automatically converted by @benoitlahoz 'isf-transitions').",
+    "INPUTS": [
+        {
+            "LABEL": "Progress",
+            "NAME": "progress",
+            "TYPE": "float",
+            "DEFAULT": 0,
+            "MIN": 0,
+            "MAX": 1
+        },
+        {
+            "LABEL": "From",
+            "NAME": "startImage",
+            "TYPE": "image"
+        },
+        {
+            "LABEL": "To",
+            "NAME": "endImage",
+            "TYPE": "image"
+        },
+        {
+            "LABEL": "scale",
+            "NAME": "scale",
+            "TYPE": "float",
+            "DEFAULT": 2,
+            "MIN": 0,
+            "MAX": 8
+        },
+        {
+            "LABEL": "z",
+            "NAME": "z",
+            "TYPE": "float",
+            "DEFAULT": 1.5,
+            "MIN": 0,
+            "MAX": 6
+        },
+        {
+            "LABEL": "speed",
+            "NAME": "speed",
+            "TYPE": "float",
+            "DEFAULT": 5,
+            "MIN": 0,
+            "MAX": 20
+        }
+    ],
+    "ISFVSN": "2"
+}
+*/
+
+float ratio = RENDERSIZE.x / RENDERSIZE.y;
+
+vec4 getFromColor(vec2 uv) {
+  return IMG_NORM_PIXEL(startImage, uv);
+}
+
+vec4 getToColor(vec2 uv) {
+  return IMG_NORM_PIXEL(endImage, uv);
+}
+
+// Name: Power Kaleido
+#define PI 3.14159265358979
+const float rad = 120.; // change this value to get different mirror effects
+const float deg = rad / 180. * PI;
+vec2 refl(vec2 p,vec2 o,vec2 n)
+{
+	return 2.0*o+2.0*n*dot(p-o,n)-p;
+}
+
+vec2 rot(vec2 p, vec2 o, float a)
+{
+    float s = sin(a);
+    float c = cos(a);
+	return o + mat2(c, -s, s, c) * (p - o);
+}
+
+vec4 mainImage(vec2 uv)
+{
+  float dist = scale / 10.;
+  vec2 uv0 = uv;
+	uv -= 0.5;
+  uv.x *= ratio;
+  uv *= z;
+  uv = rot(uv, vec2(0.0), progress*speed);
+	float theta = progress*6.+PI/.5;
+	for(int iter = 0; iter < 10; iter++) {
+    for(float i = 0.; i < 2. * PI; i+=deg) {
+	    float ts = sign(asin(cos(i))) == 1.0 ? 1.0 : 0.0;
+      if(((ts == 1.0) && (uv.y-dist*cos(i) > tan(i)*(uv.x+dist*+sin(i)))) || ((ts == 0.0) && (uv.y-dist*cos(i) < tan(i)*(uv.x+dist*+sin(i))))) {
+        uv = refl(vec2(uv.x+sin(i)*dist*2.,uv.y-cos(i)*dist*2.), vec2(0.,0.), vec2(cos(i),sin(i)));
+      }
+    }
+  }
+  uv += 0.5;
+  uv = rot(uv, vec2(0.5), progress*-speed);
+  uv -= 0.5;
+  uv.x /= ratio;
+  uv += 0.5;
+  uv = 2.*abs(uv/2.-floor(uv/2.+0.5));
+  vec2 uvMix = mix(uv,uv0,cos(progress*PI*2.)/2.+0.5);
+  vec4 color = mix(getFromColor(uvMix),getToColor(uvMix),cos((progress-1.)*PI)/2.+0.5);
+	return color;
+    
+}
+vec4 transition (vec2 uv) {
+  vec4 color = mainImage(uv);
+  return color;
+}
+
+void main() {
+  gl_FragColor = transition(isf_FragNormCoord);
+}

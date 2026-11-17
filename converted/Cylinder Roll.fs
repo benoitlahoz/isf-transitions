@@ -1,0 +1,159 @@
+/*{
+    "CATEGORIES": [
+        "Transition",
+        "gl-transitions"
+    ],
+    "CREDIT": "gre - MIT",
+    "DESCRIPTION": "The frame wraps around a drum that rolls up, the outgoing image turning away over its top in a motion blur and the incoming one coming around from below and unrolling flat (Automatically converted by @benoitlahoz 'isf-transitions').",
+    "INPUTS": [
+        {
+            "LABEL": "Progress",
+            "NAME": "progress",
+            "TYPE": "float",
+            "DEFAULT": 0,
+            "MIN": 0,
+            "MAX": 1
+        },
+        {
+            "LABEL": "From",
+            "NAME": "startImage",
+            "TYPE": "image"
+        },
+        {
+            "LABEL": "To",
+            "NAME": "endImage",
+            "TYPE": "image"
+        },
+        {
+            "LABEL": "curvature",
+            "NAME": "curvature",
+            "TYPE": "float",
+            "DEFAULT": 0.8,
+            "MIN": 0,
+            "MAX": 1
+        },
+        {
+            "LABEL": "blur",
+            "NAME": "blur",
+            "TYPE": "float",
+            "DEFAULT": 0.5,
+            "MIN": 0,
+            "MAX": 1
+        },
+        {
+            "LABEL": "shading",
+            "NAME": "shading",
+            "TYPE": "float",
+            "DEFAULT": 0.6,
+            "MIN": 0,
+            "MAX": 1
+        },
+        {
+            "LABEL": "chroma",
+            "NAME": "chroma",
+            "TYPE": "float",
+            "DEFAULT": 0.5,
+            "MIN": 0,
+            "MAX": 1
+        },
+        {
+            "LABEL": "downward",
+            "NAME": "downward",
+            "TYPE": "bool",
+            "DEFAULT": false
+        }
+    ],
+    "ISFVSN": "2"
+}
+*/
+
+float ratio = RENDERSIZE.x / RENDERSIZE.y;
+
+vec4 getFromColor(vec2 uv) {
+  return IMG_NORM_PIXEL(startImage, uv);
+}
+
+vec4 getToColor(vec2 uv) {
+  return IMG_NORM_PIXEL(endImage, uv);
+}
+
+const int SAMPLES = 24;
+// the half angle of the drum seen in the frame height, at full curvature
+const float MAX_ANGLE = 1.1;
+// distance from the camera to the drum's axis, in drum radii
+const float DIST = 2.6;
+// how much the horizontal lines arc away from the middle, per frame height squared
+const float ARC = 0.12;
+
+float hash(vec2 c) {
+  vec2 q = fract(c * vec2(0.1031, 0.1030));
+  q += dot(q, q.yx + 33.33);
+  return fract((q.x + q.y) * q.x);
+}
+
+float fold(float v) {
+  return 1.0 - abs(1.0 - mod(v, 2.0));
+}
+
+vec4 strip(float x, float v) {
+  if (downward ? v > 1.0 : v < 0.0) {
+    return getToColor(vec2(x, fold(downward ? v - 1.0 : v + 1.0)));
+  }
+  return getFromColor(vec2(x, fold(v)));
+}
+
+// angle on the drum seen at the projected height c (the drum has a radius of 1)
+float angleAt(float c) {
+  c = clamp(c, -0.98 / sqrt(DIST * DIST - 1.0), 0.98 / sqrt(DIST * DIST - 1.0));
+  return asin(c * DIST / sqrt(1.0 + c * c)) - atan(c);
+}
+
+vec4 transition(vec2 uv) {
+  float p = progress;
+  float h = 1.0 - abs(2.0 * p - 1.0);
+  float e = 0.5 * h * (0.1 + 0.9 * h * h);
+  float roll = p < 0.5 ? e : 1.0 - e;
+  float h3 = h * h * h;
+  float peak = h3 * h3;
+
+  float bend = curvature * (p < 0.5 ? h * (2.0 - h) : h * h * (3.0 - 2.0 * h));
+  float phi = MAX_ANGLE * bend + 1e-4;
+  float arcK = ARC * bend;
+  float edgeY = sin(phi) / (DIST - cos(phi));
+
+  vec2 n = 2.0 * uv - 1.0;
+  float xr = n.x * ratio;
+  float yn = n.y * (1.0 + arcK * xr * xr);
+  float theta = angleAt(yn * edgeY);
+  // nearer parts of the drum look wider: the drum is made wide enough to fill the frame's corners
+  float thetaCorner = angleAt((1.0 + arcK * ratio * ratio) * edgeY);
+  float width = (DIST - 1.0) / (DIST - cos(theta));
+  float zoom = (DIST - cos(thetaCorner)) / (DIST - 1.0);
+  float x = 0.5 + 0.5 * n.x / (zoom * width);
+  float facing = (DIST * cos(theta) - 1.0)
+    / sqrt(1.0 + DIST * DIST - 2.0 * DIST * cos(theta)) ;
+  float light = mix(1.0, clamp(facing, 0.0, 1.0), shading);
+
+  // position on the strip (the frame height when flat), rolling the outgoing image away
+  float v = 0.5 * (theta / phi + 1.0) + (downward ? roll : -roll);
+  float len = 0.5 * blur * peak;
+  float split = chroma * peak;
+  float jitter = hash(uv * 1000.0);
+  vec3 color = vec3(0.0);
+  vec3 weight = vec3(0.0);
+  float alpha = 0.0;
+  for (int i = 0; i < SAMPLES; i++) {
+    float t = (float(i) + jitter) / float(SAMPLES) - 0.5;
+    vec4 img = strip(x, v + t * len);
+    vec3 w = vec3(max(1.0 - 4.0 * split * t, 0.0), 1.0, max(1.0 + 4.0 * split * t, 0.0));
+    color += img.rgb * img.a * w;
+    weight += img.a * w;
+    alpha += img.a;
+  }
+  color = color / max(weight, vec3(1e-5));
+  return vec4(color * light, alpha / float(SAMPLES));
+}
+
+void main() {
+  gl_FragColor = transition(isf_FragNormCoord);
+}

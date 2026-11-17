@@ -1,0 +1,173 @@
+/*{
+    "CATEGORIES": [
+        "Transition",
+        "gl-transitions"
+    ],
+    "CREDIT": "gre - MIT",
+    "DESCRIPTION": "The image turns into text-mode characters, denser where it is brighter, the characters scramble into those of the incoming image, then resolve back into it (Automatically converted by @benoitlahoz 'isf-transitions').",
+    "INPUTS": [
+        {
+            "LABEL": "Progress",
+            "NAME": "progress",
+            "TYPE": "float",
+            "DEFAULT": 0,
+            "MIN": 0,
+            "MAX": 1
+        },
+        {
+            "LABEL": "From",
+            "NAME": "startImage",
+            "TYPE": "image"
+        },
+        {
+            "LABEL": "To",
+            "NAME": "endImage",
+            "TYPE": "image"
+        },
+        {
+            "LABEL": "cellSize",
+            "NAME": "cellSize",
+            "TYPE": "float",
+            "DEFAULT": 0.04,
+            "MIN": 0.01,
+            "MAX": 0.1
+        },
+        {
+            "LABEL": "colored",
+            "NAME": "colored",
+            "TYPE": "bool",
+            "DEFAULT": true
+        },
+        {
+            "LABEL": "ink",
+            "NAME": "ink",
+            "TYPE": "color",
+            "DEFAULT": [0.3, 1, 0.45, 1],
+            "MIN": [0, 0, 0, 0],
+            "MAX": [1, 1, 1, 1]
+        },
+        {
+            "LABEL": "background",
+            "NAME": "background",
+            "TYPE": "color",
+            "DEFAULT": [0, 0, 0, 1],
+            "MIN": [0, 0, 0, 0],
+            "MAX": [1, 1, 1, 1]
+        }
+    ],
+    "ISFVSN": "2"
+}
+*/
+
+float ratio = RENDERSIZE.x / RENDERSIZE.y;
+
+vec4 getFromColor(vec2 uv) {
+  return IMG_NORM_PIXEL(startImage, uv);
+}
+
+vec4 getToColor(vec2 uv) {
+  return IMG_NORM_PIXEL(endImage, uv);
+}
+
+// width of a character cell, in cell heights
+const float ASPECT = 0.6;
+const float STROKE = 0.05;
+
+float hash12(vec2 p) {
+  vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+  p3 += dot(p3, p3.yzx + 33.33);
+  return fract((p3.x + p3.y) * p3.z);
+}
+
+float segment(vec2 q, vec2 a, vec2 b) {
+  vec2 pa = q - a;
+  vec2 ba = b - a;
+  return length(pa - ba * clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0));
+}
+
+// distance to the strokes of the character of density g, 0 (" ") to 9 ("@"), q in cell heights from its center
+float glyph(float g, vec2 q) {
+  if (g < 0.5) return 1.0; // " "
+  if (g < 1.5) return length(q - vec2(0.0, -0.27)) - 0.035; // "."
+  if (g < 2.5) return min(length(q - vec2(0.0, -0.25)), length(q - vec2(0.0, 0.1))) - 0.035; // ":"
+  if (g < 3.5) return segment(q, vec2(-0.17, 0.0), vec2(0.17, 0.0)) - STROKE; // "-"
+  if (g < 4.5) { // "="
+    return min(segment(q, vec2(-0.18, 0.1), vec2(0.18, 0.1)), segment(q, vec2(-0.18, -0.1), vec2(0.18, -0.1))) - STROKE;
+  }
+  if (g < 5.5) { // "+"
+    return min(segment(q, vec2(-0.19, 0.0), vec2(0.19, 0.0)), segment(q, vec2(0.0, -0.19), vec2(0.0, 0.19))) - STROKE;
+  }
+  if (g < 6.5) { // "*"
+    float d = segment(q, vec2(0.0, -0.2), vec2(0.0, 0.2));
+    d = min(d, segment(q, vec2(-0.18, -0.11), vec2(0.18, 0.11)));
+    d = min(d, segment(q, vec2(-0.18, 0.11), vec2(0.18, -0.11)));
+    return d - STROKE;
+  }
+  if (g < 7.5) { // "#"
+    float d = min(segment(q, vec2(-0.06, -0.3), vec2(-0.1, 0.3)), segment(q, vec2(0.12, -0.3), vec2(0.08, 0.3)));
+    d = min(d, min(segment(q, vec2(-0.24, 0.11), vec2(0.24, 0.11)), segment(q, vec2(-0.24, -0.11), vec2(0.24, -0.11))));
+    return d - STROKE;
+  }
+  if (g < 8.5) { // "%"
+    float d = segment(q, vec2(-0.2, -0.3), vec2(0.2, 0.3));
+    d = min(d, abs(length(q - vec2(-0.13, 0.19)) - 0.08));
+    d = min(d, abs(length(q - vec2(0.13, -0.19)) - 0.08));
+    return d - STROKE;
+  }
+  // "@": a ring around a small "a"
+  float d = abs(length(q) - 0.25);
+  d = min(d, abs(length(q - vec2(-0.02, 0.0)) - 0.1));
+  d = min(d, segment(q, vec2(0.08, 0.1), vec2(0.08, -0.12)));
+  return d - 0.8 * STROKE;
+}
+
+float density(vec4 c) {
+  return floor(pow(clamp(dot(c.rgb, vec3(0.299, 0.587, 0.114)) * c.a, 0.0, 1.0), 0.75) * 9.99);
+}
+
+vec4 cellColor(vec2 center, vec2 dims, bool incoming) {
+  vec4 c = vec4(0.0);
+  for (int i = 0; i < 4; i++) {
+    vec2 o = (vec2(mod(float(i), 2.0), floor(float(i) / 2.0)) - 0.5) * 0.5 * dims;
+    vec2 st = clamp((center + o) / vec2(ratio, 1.0) + 0.5, 0.0, 1.0);
+    c += incoming ? getToColor(st) : getFromColor(st);
+  }
+  return c * 0.25;
+}
+
+vec4 transition(vec2 uv) {
+  float p = progress;
+  float h = cellSize;
+  vec2 fp = (uv - 0.5) * vec2(ratio, 1.0);
+  vec2 dims = vec2(ASPECT * h, h);
+  vec2 cell = floor(fp / dims);
+  vec2 center = (cell + 0.5) * dims;
+  vec2 q = (fp - center) / h;
+
+  float r = hash12(cell + 100.0);
+  float at = 0.4 + 0.2 * r;
+  bool incoming = p > at;
+  vec4 c = cellColor(center, dims, incoming);
+  float g = density(c);
+  float scramble = 1.0 - smoothstep(0.02, 0.045, abs(p - at));
+  if (hash12(cell + floor(p * 40.0) * vec2(17.0, 31.0)) < scramble) {
+    g = 1.0 + floor(9.0 * hash12(cell * 1.7 + floor(p * 40.0) * vec2(5.0, 11.0)));
+  }
+
+  float cover = 1.0 - smoothstep(-0.02, 0.02, glyph(g, q));
+  vec3 tint = colored ? mix(c.rgb, c.rgb / max(max(c.r, max(c.g, c.b)), 0.05), 0.7) : ink.rgb;
+  float alpha = colored ? c.a : ink.a * c.a;
+  vec3 behind = colored ? mix(background.rgb, c.rgb, 0.3) : background.rgb;
+  vec4 back = vec4(behind, background.a * c.a);
+  vec4 text = mix(back, vec4(clamp(tint, 0.0, 1.0), alpha), cover);
+
+  float into = 0.05 + 0.22 * hash12(cell + 200.0);
+  float outof = 0.95 - 0.22 * hash12(cell + 300.0);
+  float show = smoothstep(into, into + 0.08, p) * (1.0 - smoothstep(outof - 0.08, outof, p));
+  vec4 image = p < 0.5 ? getFromColor(uv) : getToColor(uv);
+  return mix(image, text, show);
+}
+
+void main() {
+  gl_FragColor = transition(isf_FragNormCoord);
+}

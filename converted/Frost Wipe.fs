@@ -1,0 +1,223 @@
+/*{
+    "CATEGORIES": [
+        "Transition",
+        "gl-transitions"
+    ],
+    "CREDIT": "gre - MIT",
+    "DESCRIPTION": "Ice crystals grow in from the edges of the frame with feathery, branching fronts, frosting the outgoing image white and blurry until it is covered, then thaw back out to the edges on the incoming image (Automatically converted by @benoitlahoz 'isf-transitions').",
+    "INPUTS": [
+        {
+            "LABEL": "Progress",
+            "NAME": "progress",
+            "TYPE": "float",
+            "DEFAULT": 0,
+            "MIN": 0,
+            "MAX": 1
+        },
+        {
+            "LABEL": "From",
+            "NAME": "startImage",
+            "TYPE": "image"
+        },
+        {
+            "LABEL": "To",
+            "NAME": "endImage",
+            "TYPE": "image"
+        },
+        {
+            "LABEL": "spread",
+            "NAME": "spread",
+            "TYPE": "float",
+            "DEFAULT": 0.5,
+            "MIN": 0,
+            "MAX": 1
+        },
+        {
+            "LABEL": "scale",
+            "NAME": "scale",
+            "TYPE": "float",
+            "DEFAULT": 5,
+            "MIN": 2,
+            "MAX": 12
+        },
+        {
+            "LABEL": "blur",
+            "NAME": "blur",
+            "TYPE": "float",
+            "DEFAULT": 0.5,
+            "MIN": 0,
+            "MAX": 1
+        },
+        {
+            "LABEL": "color",
+            "NAME": "color",
+            "TYPE": "color",
+            "DEFAULT": [0.86, 0.93, 1, 1],
+            "MIN": [0, 0, 0, 0],
+            "MAX": [1, 1, 1, 1]
+        }
+    ],
+    "ISFVSN": "2"
+}
+*/
+
+float ratio = RENDERSIZE.x / RENDERSIZE.y;
+
+vec4 getFromColor(vec2 uv) {
+  return IMG_NORM_PIXEL(startImage, uv);
+}
+
+vec4 getToColor(vec2 uv) {
+  return IMG_NORM_PIXEL(endImage, uv);
+}
+
+const int TAPS = 12;
+
+float hash12(vec2 v) {
+  vec3 v3 = fract(vec3(v.xyx) * 0.1031);
+  v3 += dot(v3, v3.yzx + 33.33);
+  return fract((v3.x + v3.y) * v3.z);
+}
+
+float vnoise(vec2 v) {
+  vec2 i = floor(v);
+  vec2 f = fract(v);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(hash12(i), hash12(i + vec2(1.0, 0.0)), f.x),
+    mix(hash12(i + vec2(0.0, 1.0)), hash12(i + vec2(1.0, 1.0)), f.x),
+    f.y
+  );
+}
+
+float ridged(vec2 v) {
+  float sum = 0.0;
+  float amp = 0.5;
+  for (int i = 0; i < 4; i++) {
+    float n = 1.0 - abs(2.0 * vnoise(v) - 1.0);
+    sum += amp * n * n;
+    v = mat2(1.6, 1.2, -1.2, 1.6) * v + 4.7;
+    amp *= 0.5;
+  }
+  return sum / 0.9375;
+}
+
+// crystal grains, cells of size 1: x is how far from the boundary between two grains
+// (0 on it, where the crystals start), y a random number for the grain, zw the position
+// relative to the grain's seed
+vec4 grains(vec2 v) {
+  vec2 i = floor(v);
+  vec2 f = fract(v);
+  float d1 = 8.0;
+  float d2 = 8.0;
+  vec3 seed = vec3(0.0);
+  for (int y = -1; y <= 1; y++) {
+    for (int x = -1; x <= 1; x++) {
+      vec2 c = vec2(float(x), float(y));
+      vec2 o = c + vec2(hash12(i + c), hash12(i + c + 17.3)) - f;
+      float d = dot(o, o);
+      if (d < d1) {
+        d2 = d1;
+        d1 = d;
+        seed = vec3(hash12(i + c + 41.9), -o);
+      } else if (d < d2) {
+        d2 = d;
+      }
+    }
+  }
+  return vec4(sqrt(d2) - sqrt(d1), seed);
+}
+
+vec2 mirror(vec2 v) {
+  return 1.0 - abs(1.0 - mod(v, 2.0));
+}
+
+vec4 image(vec2 uv, float m) {
+  if (m <= 0.0) return getFromColor(uv);
+  if (m >= 1.0) return getToColor(uv);
+  return mix(getFromColor(uv), getToColor(uv), m);
+}
+
+vec4 transition(vec2 uv) {
+  float p = progress;
+  // 0 at both ends, 1 while the frost covers the whole frame (from 0.425 to 0.575)
+  float h = 1.0 - abs(2.0 * p - 1.0);
+  float a = clamp(h / 0.85, 0.0, 1.0);
+  a = a * (1.6 - 0.6 * a);
+  float m = smoothstep(0.47, 0.53, p);
+  if (a <= 0.0) return image(uv, m);
+
+  vec2 q = uv * vec2(ratio, 1.0);
+  vec2 dEdge = min(uv, 1.0 - uv) * vec2(ratio, 1.0);
+  float depth = min(dEdge.x, dEdge.y) / (0.5 * min(ratio, 1.0));
+  depth = 1.0 - (1.0 - depth) * (1.0 - depth); // the covered area grows evenly
+
+  // the front, which moves from the edges past the deepest point; the crystals below only
+  // hold it back, so nothing is frosted (yet, or any more) deeper than it
+  float reach = 0.2 + 0.6 * clamp(spread, 0.0, 1.0);
+  float front = mix(-0.1, 1.0 + reach + 0.2, a);
+  if (depth > front + 0.08) return image(uv, m);
+
+  vec2 gv = q * scale;
+  vec4 gr = grains(gv + 0.35 * vec2(vnoise(gv * 1.7), vnoise(gv * 1.7 + 23.1)));
+  // the needles' direction, any angle (a rational point on the unit circle)
+  float u = 2.0 * gr.y - 1.0;
+  vec2 dir = vec2(1.0 - u * u, 2.0 * u) / (1.0 + u * u);
+  float t = dot(gr.zw, dir) * 7.0;
+  float needle = 1.0 - abs(2.0 * fract(t) - 1.0);
+  float nh = fract(gr.y + 0.618034 * floor(t));
+  float len = mix(0.15, 0.6, nh);
+  float r = ridged(gv * 1.3);
+  float rf = ridged(gv * 4.0 + 11.0);
+  float grow = min(gr.x * 3.5, gr.x / len * 0.5 + (1.0 - needle) * 1.2 + 0.2 * fract(nh * 13.7));
+  float field = depth + reach * (0.8 * min(grow, 1.0) + 0.2 * (1.0 - r)) + 0.1 * (1.0 - rf);
+  float inside = front - field; // > 0 under the frost
+  float f = smoothstep(0.0, 0.03, inside);
+  float haze = 0.4 * smoothstep(0.9, 1.0, rf) * smoothstep(-0.08, 0.0, inside);
+  float frost = max(f, haze);
+  if (frost <= 0.0) return image(uv, m);
+
+  float thick = smoothstep(0.0, 0.5, inside);
+  float full = smoothstep(0.75, 0.95, h); // the frost turns opaque to hide the switch
+
+  float radius = (0.004 + 0.03 * blur) * frost * (0.5 + 0.5 * thick);
+  float rot = 6.2831853 * hash12(floor(q * 90.0));
+  vec3 rgb = vec3(0.0);
+  float alpha = 0.0;
+  for (int i = 0; i < TAPS; i++) {
+    float k = (float(i) + 0.5) / float(TAPS);
+    float th = rot + float(i) * 2.3999632;
+    vec2 off = sqrt(k) * vec2(cos(th), sin(th)) * radius;
+    vec4 c = image(mirror(uv + off / vec2(ratio, 1.0)), m);
+    rgb += c.rgb * c.a;
+    alpha += c.a;
+  }
+  alpha /= float(TAPS);
+  rgb = alpha > 0.0 ? rgb / (alpha * float(TAPS)) : vec3(0.0);
+
+  float stem = 1.0 - smoothstep(0.0, 0.03, gr.x);
+  float needles = smoothstep(0.7, 1.0, needle) * (1.0 - smoothstep(0.0, len, gr.x));
+  float glint = 0.4 + 0.6 * rf;
+  float veins = clamp(glint * max(0.35 * stem, 0.55 * needles) + 0.3 * smoothstep(0.6, 0.95, r), 0.0, 1.0);
+  float rim = smoothstep(0.0, 0.02, inside) * (1.0 - smoothstep(0.02, 0.07, inside));
+  vec3 ice = clamp(color.rgb * (0.82 + 0.25 * veins), 0.0, 1.0);
+  float cover = frost * (0.35 + 0.3 * thick + 0.25 * veins);
+  cover = clamp(mix(cover, frost, full), 0.0, 1.0);
+  vec4 under = vec4(rgb * mix(vec3(1.0), color.rgb, 0.5 * frost), alpha);
+  // the frost color mixes as straight RGBA, like every fill color
+  vec4 res = mix(under, vec4(ice, color.a), cover);
+
+  vec2 sq = q * 36.0;
+  vec2 cell = floor(sq);
+  vec2 d = abs(sq - cell - 0.25 - 0.5 * vec2(hash12(cell + 1.3), hash12(cell + 5.9)));
+  float star = max(0.0, 1.0 - 9.0 * length(d)) + max(0.0, 1.0 - 4.0 * (d.x + d.y) - 30.0 * min(d.x, d.y));
+  float tw = 0.5 + 0.5 * sin(6.2831853 * (hash12(cell + 9.1) + 2.0 * p));
+  float sparkle = step(0.82, hash12(cell + 3.7)) * min(star, 1.0) * tw * f * (0.4 + 0.6 * veins);
+  float light = clamp(0.4 * rim + 0.8 * sparkle, 0.0, 1.0);
+  res = mix(res, vec4(mix(color.rgb, vec3(1.0), 0.6), color.a), light);
+  return clamp(res, 0.0, 1.0);
+}
+
+void main() {
+  gl_FragColor = transition(isf_FragNormCoord);
+}

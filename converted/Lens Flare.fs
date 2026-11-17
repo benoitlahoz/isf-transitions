@@ -1,0 +1,176 @@
+/*{
+    "CATEGORIES": [
+        "Transition",
+        "gl-transitions"
+    ],
+    "CREDIT": "gre - MIT",
+    "DESCRIPTION": "A bright light sweeps across the frame and flares the lens: a long thin horizontal streak, a glowing core and a trail of colored ghost reflections; at its peak the incoming image spreads out from the light under its glare (Automatically converted by @benoitlahoz 'isf-transitions').",
+    "INPUTS": [
+        {
+            "LABEL": "Progress",
+            "NAME": "progress",
+            "TYPE": "float",
+            "DEFAULT": 0,
+            "MIN": 0,
+            "MAX": 1
+        },
+        {
+            "LABEL": "From",
+            "NAME": "startImage",
+            "TYPE": "image"
+        },
+        {
+            "LABEL": "To",
+            "NAME": "endImage",
+            "TYPE": "image"
+        },
+        {
+            "LABEL": "angle",
+            "NAME": "angle",
+            "TYPE": "float",
+            "DEFAULT": -12,
+            "MIN": -90,
+            "MAX": 90
+        },
+        {
+            "LABEL": "height",
+            "NAME": "height",
+            "TYPE": "float",
+            "DEFAULT": 0.18,
+            "MIN": -0.5,
+            "MAX": 0.5
+        },
+        {
+            "LABEL": "intensity",
+            "NAME": "intensity",
+            "TYPE": "float",
+            "DEFAULT": 1,
+            "MIN": 0,
+            "MAX": 2
+        },
+        {
+            "LABEL": "color",
+            "NAME": "color_isf",
+            "TYPE": "color",
+            "DEFAULT": [0.35, 0.6, 1, 1],
+            "MIN": [0, 0, 0, 0],
+            "MAX": [1, 1, 1, 1]
+        }
+    ],
+    "ISFVSN": "2"
+}
+*/
+
+float ratio = RENDERSIZE.x / RENDERSIZE.y;
+
+vec4 getFromColor(vec2 uv) {
+  return IMG_NORM_PIXEL(startImage, uv);
+}
+
+vec4 getToColor(vec2 uv) {
+  return IMG_NORM_PIXEL(endImage, uv);
+}
+
+#define color color_isf.rgb
+
+const int BLOOM_TAPS = 12;
+const int GHOSTS = 6;
+
+vec2 mirror(vec2 v) {
+  return 1.0 - abs(1.0 - mod(v, 2.0));
+}
+
+vec4 premultiplied(vec4 c) {
+  return vec4(c.rgb * c.a, c.a);
+}
+
+vec4 frame(vec2 st, float m) {
+  if (m <= 0.0) return premultiplied(getFromColor(st));
+  if (m >= 1.0) return premultiplied(getToColor(st));
+  return mix(premultiplied(getFromColor(st)), premultiplied(getToColor(st)), m);
+}
+
+vec3 highlight(vec4 c) {
+  float lum = dot(c.rgb, vec3(0.2126, 0.7152, 0.0722));
+  return c.rgb * smoothstep(0.55, 0.95, lum);
+}
+
+vec4 transition(vec2 uv) {
+  float p = progress;
+
+  float env = 4.0 * p * (1.0 - p);
+  float peak = pow(env, 24.0);
+  vec2 aspect = vec2(ratio, 1.0);
+  vec2 q = (uv - 0.5) * aspect;
+  float r = radians(angle);
+  vec2 dir = vec2(cos(r), -sin(r));
+  vec2 normal = vec2(-dir.y, dir.x);
+  float t = p - 0.5;
+  float travel = 0.5 * (abs(dir.x) * ratio + abs(dir.y)) + 0.3;
+  float along = travel * (2.0 * t) * (0.55 + 1.8 * t * t);
+  vec2 src = dir * along + normal * height;
+
+  vec2 d = q - src;
+  float dist = length(d);
+  float k = intensity * env;
+
+  // the cut, under the glare: the incoming image spreads out from the light in a soft circle,
+  // slower as the flare gets dimmer so that it still reads as intended
+  float cut = mix(0.2, 0.06, clamp(intensity, 0.0, 1.0));
+  float s = clamp((p - 0.5 + cut) / (2.0 * cut), 0.0, 1.0);
+  float soft = 0.3;
+  float reach = 0.5 * length(aspect) + length(src) + soft;
+  float front = s * (reach + soft);
+  float m = smoothstep(front, front - soft, dist);
+  vec4 base = frame(uv, m);
+
+  float ax = abs(d.x);
+  float ay = abs(d.y);
+  float thin = exp(-ay * 140.0) * exp(-ax * 0.7);
+  float wide = exp(-ay * 30.0) * exp(-ax * 1.6);
+  vec3 tint = color;
+  vec3 streak = (thin * mix(vec3(1.0), tint, smoothstep(0.0, 0.3, ax)) + 0.5 * wide * tint) * 3.0;
+
+  vec3 core = vec3(1.0, 0.97, 0.92) * exp(-dist * dist * 600.0) * 3.0 + mix(vec3(1.0), tint, 0.5) * exp(-dist * 7.0) * 0.6;
+
+  vec3 ghosts = vec3(0.0);
+  for (int i = 0; i < GHOSTS; i++) {
+    float fi = float(i);
+    float f = -0.45 + 0.42 * fi + 0.08 * sin(fi * 2.3);
+    vec2 g = -src * f;
+    float size = 0.025 + 0.06 * fract(fi * 0.618 + 0.2);
+    float gd = length(q - g) / size;
+    float disc = smoothstep(1.0, 0.8, gd) * (0.35 + 0.65 * smoothstep(0.4, 0.95, gd));
+    vec3 hue = mix(tint, vec3(1.0, 0.65, 0.35), fract(fi * 0.53));
+    hue = mix(hue, vec3(0.5, 1.0, 0.6), step(4.5, fi) * 0.6);
+    ghosts += disc * hue * 0.45;
+  }
+
+  vec3 bloom = vec3(0.0);
+  if (peak > 1e-3) {
+    float radius = 0.06 * env;
+    for (int i = 0; i < BLOOM_TAPS; i++) {
+      float fi = float(i);
+      float a = fi * 2.39996;
+      float rr = radius * sqrt((fi + 0.5) / float(BLOOM_TAPS));
+      vec2 o = vec2(cos(a), sin(a)) * rr / aspect;
+      bloom += highlight(frame(mirror(uv + o), m));
+    }
+    bloom /= float(BLOOM_TAPS);
+  }
+
+  // at the peak, the glare: a wide halo around the light and a light veil over the frame, to hide the cut
+  vec3 glare = mix(vec3(1.0), tint, 0.5) * peak * (0.45 + 2.2 * exp(-dist * 3.0));
+
+  vec3 light = k * (streak + core + ghosts) + intensity * (bloom * 2.5 * peak + glare);
+  light = 1.0 - exp(-light);
+
+  // screened over the image; the flare only shows on the image, so transparency is kept
+  vec3 c = base.rgb + light * base.a - base.rgb * light;
+  if (base.a <= 0.0) return vec4(0.0);
+  return vec4(clamp(c / base.a, 0.0, 1.0), base.a);
+}
+
+void main() {
+  gl_FragColor = transition(isf_FragNormCoord);
+}

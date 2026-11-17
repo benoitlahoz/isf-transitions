@@ -3,22 +3,16 @@
         "Transition",
         "gl-transitions"
     ],
-    "CREDIT": "Mr Speaker",
-    "DESCRIPTION": "pinwheel - License MIT (Automatically converted by @benoitlahoz 'isf-transitions').",
+    "CREDIT": "Mr Speaker - MIT",
+    "DESCRIPTION": "A spinning pinwheel reveals the incoming image (Automatically converted by @benoitlahoz 'isf-transitions').",
     "INPUTS": [
         {
-            "DEFAULT": false,
-            "LABEL": "Flip",
-            "NAME": "flip",
-            "TYPE": "bool"
-        },
-        {
-            "DEFAULT": 0,
             "LABEL": "Progress",
-            "MAX": 1,
-            "MIN": 0,
             "NAME": "progress",
-            "TYPE": "float"
+            "TYPE": "float",
+            "DEFAULT": 0,
+            "MIN": 0,
+            "MAX": 1
         },
         {
             "LABEL": "From",
@@ -33,32 +27,25 @@
         {
             "LABEL": "speed",
             "NAME": "speed",
-            "DEFAULT": 2.0,
             "TYPE": "float",
-            "MAX": 1000,
-            "MIN": 0
+            "DEFAULT": 2,
+            "MIN": 0,
+            "MAX": 8
         }
     ],
     "ISFVSN": "2"
 }
 */
+
 float ratio = RENDERSIZE.x / RENDERSIZE.y;
 
 vec4 getFromColor(vec2 uv) {
-  if (flip == true) {
-    return IMG_NORM_PIXEL(startImage, vec2(uv.x, 1. - uv.y));
-  } else {
-    return IMG_NORM_PIXEL(startImage, uv);
-  }
+  return IMG_NORM_PIXEL(startImage, uv);
 }
 
 vec4 getToColor(vec2 uv) {
   return IMG_NORM_PIXEL(endImage, uv);
 }
-
-// Author: Mr Speaker
-// License: MIT
-
 
 vec4 transition(vec2 uv) {
   
@@ -66,16 +53,13 @@ vec4 transition(vec2 uv) {
   
   float circPos = atan(p.y - 0.5, p.x - 0.5) + progress * speed;
   float modPos = mod(circPos, 3.1415 / 4.);
-  float signed = sign(progress - modPos);
+  // starts just below 0 so the sector edges are not drawn on the first frame
+  float signed = sign(progress * (3.1415 / 4. + 0.01) - 0.01 - modPos);
   
   return mix(getToColor(p), getFromColor(p), step(signed, 0.5));
   
 }
 
 void main() {
-	if (flip == true) {
-    gl_FragColor = transition(vec2(isf_FragNormCoord.x, 1. - isf_FragNormCoord.y));
-  } else {
-    gl_FragColor = transition(isf_FragNormCoord);
-  }
+  gl_FragColor = transition(isf_FragNormCoord);
 }
